@@ -1,0 +1,17 @@
+# Build output
+build/
+.gradle/
+*.apk
+*.aab
+
+# Local machine settings
+local.properties
+.idea/
+*.iml
+
+# Signing key and passwords: keep these private, never commit them
+release/
+*.jks
+*.keystore
+keystore.properties
+.kotlin/
