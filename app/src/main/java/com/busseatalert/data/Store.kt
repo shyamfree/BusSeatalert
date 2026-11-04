@@ -6,6 +6,7 @@ import com.busseatalert.model.AppSettings
 import com.busseatalert.model.CheckResult
 import com.busseatalert.model.LogEntry
 import com.busseatalert.model.LogKind
+import com.busseatalert.model.SeatSummary
 import com.busseatalert.model.Watch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -85,12 +86,21 @@ class Store(context: Context) {
     fun saveResult(watchId: String, date: String, result: CheckResult) = write("result_${watchId}_$date", result)
 
     /** Puts a live seat count (from opening the seat map) into the stored result so the card matches. */
-    fun updateSeats(watchId: String, date: String, busKey: String, seats: Int) = synchronized(Store) {
+    fun updateSeats(watchId: String, date: String, busKey: String, seats: Int, info: SeatSummary? = null) = synchronized(Store) {
         val r = result(watchId, date) ?: return@synchronized
         saveResult(watchId, date, r.copy(buses = r.buses.map {
-            if (it.key == busKey) it.copy(seatsAvailable = seats, seatsVerified = true) else it
+            if (it.key == busKey) it.copy(seatsAvailable = seats, seatsVerified = true, seatInfo = info ?: it.seatInfo) else it
         }))
     }
+
+    /** The Best pick card's choices, kept between visits. */
+    var pickMode: String
+        get() = prefs.getString("pick_mode", null) ?: "BALANCED"
+        set(value) = prefs.edit().putString("pick_mode", value).apply()
+
+    var seatPref: String
+        get() = prefs.getString("seat_pref", null) ?: "ANY"
+        set(value) = prefs.edit().putString("seat_pref", value).apply()
 
     /** Last seen seat counts per watch and date: service key -> seats. Null means never checked. */
     fun snapshot(watchId: String, date: String): Map<String, Int>? = read("snap_${watchId}_$date")

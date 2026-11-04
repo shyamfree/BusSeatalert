@@ -70,8 +70,8 @@ class Checker(private val context: Context) {
                     // Only open seat maps for buses the user cares about, to keep requests down.
                     results += search.buses.filter { seen.add(it.key) }.map { bus ->
                         if (!matches(watch, bus)) return@map bus
-                        runCatching { provider.bookableSeats(bus, date) }
-                            .map { bus.copy(seatsAvailable = it, seatsVerified = true) }
+                        runCatching { provider.seatLayout(bus, date) }
+                            .map { bus.copy(seatsAvailable = it.bookable, seatsVerified = true, seatInfo = it.summary()) }
                             .getOrDefault(bus)
                             .also { delay(300) }
                     }

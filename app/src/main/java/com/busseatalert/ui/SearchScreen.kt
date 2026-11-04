@@ -282,6 +282,12 @@ internal fun SearchScreen(store: Store, navigate: (Screen) -> Unit, selectTab: (
                 }
                 val matching = r.buses.filter { it.key in r.matchingKeys }
                 val shown = filter.apply(if (filter.onlyMatching) matching else r.buses, shownWatch.minSeats)
+                // Suggests the best of the buses on screen, so it follows the filters below.
+                if (shown.any { it.seatsAvailable >= shownWatch.minSeats }) item(key = "best-pick") {
+                    BestPickCard(shown, shownWatch, r.date, store) { bus ->
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(bus.bookUrl.ifBlank { bus.operator.bookingUrl })))
+                    }
+                }
                 item { FilterPanel(filter, filtersOpen, { filtersOpen = it }, r.buses, matching, shown.size) { filter = it } }
                 if (shown.isEmpty()) item {
                     Text(

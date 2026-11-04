@@ -66,6 +66,21 @@ private val TOPICS = listOf(
             "departure time, bus type, max fare or sort order; Reset returns to the default.",
     ),
     Topic(
+        "Best pick",
+        "At the top of the results, the app suggests the best bus among those with seats.\n\n" +
+            "• What matters most: Balanced, Cheapest, Most comfortable or Fastest.\n" +
+            "• Seat I'd like: Any, Window, Aisle, Lower deck or Upper deck. Buses with that kind of seat free " +
+            "rank higher.\n" +
+            "• Comfort is judged from the bus type: AC sleepers (Ambaari, Gajaraj, Volvo SLX) highest, then AC " +
+            "semi-sleepers and seaters (Airavat, Swift Garuda), non-AC sleepers, deluxe, express and ordinary " +
+            "buses. A sleeper counts extra on long overnight trips.\n" +
+            "• Seat positions come from each bus's seat map; window and aisle counts leave out seats reserved " +
+            "for women.\n" +
+            "• 'Why' lists the reasons, and Compare shows the top 5. Tap a row to see that bus above, with Seats " +
+            "and Book.\n\n" +
+            "The suggestion only looks at the buses on screen, so it follows your filters.",
+    ),
+    Topic(
         "4. Seat map",
         "Tap Seats ▾ on a bus to open its live seat map inside the card (view only); tap again to close.\n\n" +
             "• White with green border: available\n" +

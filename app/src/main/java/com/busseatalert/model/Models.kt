@@ -104,6 +104,8 @@ data class BusService(
     val seatsVerified: Boolean = false,
     /** Link that opens the operator's site with this route and date already set (seat chart where possible). */
     val bookUrl: String = "",
+    /** Where the free seats are; null until the seat map has been read. */
+    val seatInfo: SeatSummary? = null,
 ) {
     val key: String get() = "${operator.name}|$serviceId|$departure"
 }

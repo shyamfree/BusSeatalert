@@ -106,7 +106,7 @@ internal fun SeatMapPanel(watch: Watch, date: String, bus: BusService, store: St
             .onSuccess {
                 layout = it
                 // Keep the bus card in step with what the live seat map shows.
-                if (it.bookable != listed) store.updateSeats(watch.id, date, bus.key, it.bookable)
+                store.updateSeats(watch.id, date, bus.key, it.bookable, it.summary())
                 onLiveCount(it.bookable)
             }
             .onFailure { error = it.message ?: it.javaClass.simpleName }

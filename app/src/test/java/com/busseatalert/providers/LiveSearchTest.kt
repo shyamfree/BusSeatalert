@@ -29,6 +29,7 @@ class LiveSearchTest {
             println("LAYOUT ${bus.serviceId}: ${l.seats.size} seats, decks=${l.decks}, bookable=${l.bookable}, " +
                 "ladiesFree=${l.seats.count { it.ladies && it.status.name == "AVAILABLE" }}, bookedByWoman=${l.seats.count { it.bookedByWoman }}, " +
                 "accessible=${l.seats.count { it.accessible }}, blocked=${l.seats.count { it.status.name == "BLOCKED" }}")
+            println("   SUMMARY ${l.summary()}")
             println("   sample: " + l.seats.take(6).joinToString { "${it.label}@d${it.deck}r${it.row}c${it.col}${if (it.height > 1) "h" + it.height else ""}:${it.status.name.take(4)}${if (it.ladies) "/L" else ""}" })
         }
         assertTrue(buses.isNotEmpty())
