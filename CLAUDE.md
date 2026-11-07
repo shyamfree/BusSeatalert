@@ -70,8 +70,13 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
   is kept in the in-app Notifications tab (swipe / select / clear all, with undo); tapping opens
   details with "Refresh now". SMS and email: one combined message per check.
 - Master ON/OFF switch (green bar) stops all background work; a manual Search still works when off.
+- App lock (Settings): phone's own biometric/PIN via androidx.biometric (`ui/AppLock.kt`);
+  MainActivity is a FragmentActivity for BiometricPrompt. Keep `androidx.fragment` current: the
+  old fragment that biometric 1.1.0 pulls in crashes on start ("lower 16 bits for requestCode").
 - SMS permission: Android 13+ blocks SEND_SMS for sideloaded apps ("restricted setting");
   `SmsPermissionRow` shows the status and walks the user through App info → Allow restricted settings.
+  On the owner's phone sending still fails afterwards with `SecurityException: getSmsMmsDisabled`
+  from the system (not found in AOSP; likely the phone maker) — unresolved.
 - No History tab, no activity log in the UI (Guide screen instead).
 - "Best pick" card above the results (`pick/Recommender.kt`): ranks buses with seats on price,
   comfort (keyword table on bus type names), journey time and preferred seat position

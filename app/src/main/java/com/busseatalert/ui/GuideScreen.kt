@@ -109,7 +109,9 @@ private val TOPICS = listOf(
     ),
     Topic(
         "6. Settings ⚙",
-        "• Check interval (15 minutes minimum).\n" +
+        "• App lock: ask for your fingerprint or phone PIN when opening the app (and after a minute away). " +
+            "It uses your phone's own screen lock; notifications still arrive while locked.\n" +
+            "• Check interval (15 minutes minimum).\n" +
             "• Push notifications on/off, with a test button.\n" +
             "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply. Android blocks the " +
             "SMS permission for apps installed outside the Play Store: if the status shows \"not allowed\", tap " +
