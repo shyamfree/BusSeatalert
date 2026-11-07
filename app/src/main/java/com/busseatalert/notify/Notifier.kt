@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -289,14 +290,46 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         return bitmap
     }
 
-    private fun sms(text: String) {
+    /**
+     * Sends [text] by SMS through the phone's default SMS SIM. With [waitForResult], waits up to 30 s
+     * for the phone's own sent report and returns null when sent, or why it wasn't.
+     */
+    private suspend fun sms(text: String, waitForResult: Boolean = false): String? {
         check(settings.smsNumber.isNotBlank()) { "No phone number set for SMS" }
         check(ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
             "SMS permission not allowed. Android blocks it for apps installed outside the Play Store: open App info → ⋮ → " +
                 "Allow restricted settings, then Permissions → SMS → Allow. (Settings → SMS → Help shows the steps.)"
         }
-        val manager = context.getSystemService(SmsManager::class.java)
-        manager.sendMultipartTextMessage(settings.smsNumber, null, manager.divideMessage(text), null, null)
+        // Dual-SIM phones: send through the SIM chosen for SMS, not whatever the system picks.
+        val subId = SubscriptionManager.getDefaultSmsSubscriptionId()
+        val base = context.getSystemService(SmsManager::class.java)
+        val manager = if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) base.createForSubscriptionId(subId) else base
+        val parts = manager.divideMessage(text)
+        if (!waitForResult) {
+            manager.sendMultipartTextMessage(settings.smsNumber, null, parts, null, null)
+            return null
+        }
+        val action = "${context.packageName}.SMS_SENT.${System.nanoTime()}"
+        val result = kotlinx.coroutines.CompletableDeferred<Int>()
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) { if (!result.isCompleted) result.complete(resultCode) }
+        }
+        ContextCompat.registerReceiver(context, receiver, android.content.IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
+        try {
+            val sent = PendingIntent.getBroadcast(context, 0, Intent(action).setPackage(context.packageName), PendingIntent.FLAG_IMMUTABLE)
+            manager.sendMultipartTextMessage(settings.smsNumber, null, parts, ArrayList(parts.map { sent }), null)
+            val code = kotlinx.coroutines.withTimeoutOrNull(30_000) { result.await() }
+                ?: return "No report from the phone after 30 seconds. It may still arrive; check your Messages app's Sent folder."
+            return when (code) {
+                android.app.Activity.RESULT_OK -> null
+                SmsManager.RESULT_ERROR_NO_SERVICE -> "No mobile signal."
+                SmsManager.RESULT_ERROR_RADIO_OFF -> "Mobile network is off (airplane mode?)."
+                SmsManager.RESULT_ERROR_GENERIC_FAILURE -> "The phone or SIM refused to send it (check SMS balance/plan and the SIM chosen for SMS)."
+                else -> "The phone reported error code $code."
+            }
+        } finally {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
     }
 
     private suspend fun email(subject: String, body: String) = withContext(Dispatchers.IO) {
@@ -346,7 +379,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             }
         }
         run("Push", watch.notifyPush, settings.pushEnabled) { push(listOf(g)) }
-        run("SMS", watch.notifySms, settings.smsEnabled) { sms("Test for ${watch.displayName}: SMS alerts are working.") }
+        results += when {
+            !watch.notifySms -> "SMS: off for this search"
+            !settings.smsEnabled -> "SMS: not set up in Settings"
+            else -> runCatching { sms("Test for ${watch.displayName}: SMS alerts are working.", waitForResult = true) }
+                .fold({ it?.let { r -> "SMS: FAILED — $r" } ?: "SMS: sent" }, { "SMS: FAILED — ${explain(it)}" })
+        }
         results += when {
             !watch.notifyEmail -> "Email: off for this search"
             !settings.emailEnabled -> "Email: not set up in Settings"
@@ -363,9 +401,19 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     }
 
     suspend fun testSms(): String {
-        runCatching { sms("Bus Seat Alert test: SMS alerts are working.") }.getOrElse { throw IllegalStateException(explain(it)) }
+        val problem = runCatching { sms("Bus Seat Alert test: SMS alerts are working.", waitForResult = true) }
+            .getOrElse { throw IllegalStateException(smsHelp(explain(it))) }
+        if (problem != null) throw IllegalStateException(smsHelp(problem))
         return "Test SMS sent to ${settings.smsNumber}. Carrier charges may apply."
     }
+
+    /** What to check when the phone itself refuses to send an SMS the app is allowed to send. */
+    private fun smsHelp(reason: String) = "$reason\n\n" +
+        "This comes from the phone, not the bus sites. Please check:\n" +
+        "• Two SIMs? Set a default SIM for SMS (Settings → SIM / Mobile network → SMS), not \"Ask every time\".\n" +
+        "• The SIM can send SMS (active plan, SMS balance).\n" +
+        "• Your phone's security or battery app (on some brands) allows Bus Seat Alert to send SMS.\n" +
+        "Push notifications and email work without SMS."
 
     suspend fun testEmail(): String {
         val g = sample()
@@ -385,7 +433,10 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             chain.any { it is java.net.UnknownHostException } -> "No internet connection (couldn't reach the server)."
             chain.any { it is java.net.SocketTimeoutException } -> "Timed out reaching the server. Check your internet connection."
             chain.any { it is javax.mail.internet.AddressException } -> "An email address is not valid: ${e.message}"
-            else -> chain.firstNotNullOfOrNull { it.message } ?: e.javaClass.simpleName
+            else -> chain.firstOrNull { it.message != null }?.let { t ->
+                // Bare system messages (e.g. "getSmsMmsDisabled") are clearer with their error type.
+                if (t.message!!.contains(' ')) t.message!! else "${t.javaClass.simpleName}: ${t.message}"
+            } ?: e.javaClass.simpleName
         }
     }
 
