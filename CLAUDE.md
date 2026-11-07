@@ -58,10 +58,20 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
 - Default result filter: all buses, seats available only, cheapest first.
 - Colours: theme red/white like Kerala RTC; sites — Kerala red, Karnataka blue, TNSTC green
   (bright, not dark). FULL badge is grey.
-- Phone shows **one** notification (fixed id, newest replaces older, still pops up). Every alert
+- Search only shows results. Background checks and notifications are only for a search whose
+  alert the user set (`Watch.alertOn`, "🔔 Set alert for this search" under the results).
+  Changing the search (anything in `criteria()`, dates included) turns its alert off and cancels
+  the phone notification.
+- Notify only on change (seats freed / increased, new bus with seats): sounding push + SMS +
+  email. No change → optional silent push update "No change since last check"
+  (`Watch.notifyNoChange`, default on); never SMS/email for no change. Setting an alert posts a
+  silent "Alert set" status.
+- Phone shows **one** notification (fixed id, newest replaces older). Every change alert
   is kept in the in-app Notifications tab (swipe / select / clear all, with undo); tapping opens
   details with "Refresh now". SMS and email: one combined message per check.
-- Master ON/OFF switch stops all background work; a manual Search still works when off.
+- Master ON/OFF switch (green bar) stops all background work; a manual Search still works when off.
+- SMS permission: Android 13+ blocks SEND_SMS for sideloaded apps ("restricted setting");
+  `SmsPermissionRow` shows the status and walks the user through App info → Allow restricted settings.
 - No History tab, no activity log in the UI (Guide screen instead).
 - "Best pick" card above the results (`pick/Recommender.kt`): ranks buses with seats on price,
   comfort (keyword table on bus type names), journey time and preferred seat position

@@ -46,6 +46,10 @@ data class Watch(
     val notifyPush: Boolean = true,
     val notifySms: Boolean = true,
     val notifyEmail: Boolean = true,
+    /** After checks that found no change, quietly update the phone notification to say so (never SMS/email). */
+    val notifyNoChange: Boolean = true,
+    /** The user tapped "Set alert" for this search: check it in the background and notify on changes. */
+    val alertOn: Boolean = false,
     /** Journey dates as yyyy-MM-dd; only these dates are checked. */
     val dates: List<String> = emptyList(),
     /** Single date from older versions of the app; read via [journeyDates]. */

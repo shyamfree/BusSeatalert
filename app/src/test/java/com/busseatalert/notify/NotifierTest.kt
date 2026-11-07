@@ -42,4 +42,34 @@ class NotifierTest {
         assertTrue(lines.single().startsWith("Karnataka RTC"))   // the newest alert replaced the older one
         assertEquals("app keeps every site entry", 3, store.alerts.size)
     }
+
+    @Test
+    fun noChangeQuietlyReplacesThePhoneNotification() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        val store = Store(app)
+        val watch = Watch("w2", "Palghat", "Bengaluru", dates = listOf("2026-11-10"), alertOn = true)
+        val bus = BusService(Operator.TNSTC, "T9", "SETC", "ULTRA DELUXE", "22:00", "07:00", 437, 4)
+        val nm = shadowOf(app.getSystemService(NotificationManager::class.java))
+
+        // A change alert first (unread), then a check with no change.
+        Notifier(app, store.settings).send(listOf(Alert(watch, "2026-11-10", bus, Alert.Kind.SEATS_FREED, 0)))
+        val stored = store.alerts.size
+        Notifier(app, store.settings).sendNoChange(watch, listOf(com.busseatalert.check.DateStatus("2026-11-10", listOf(bus), 12, emptyList())))
+
+        val n = nm.allNotifications.single()
+        val lines = n.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)!!.map { it.toString() }
+        println("no-change: ${n.extras.getCharSequence(Notification.EXTRA_TITLE)} | $lines")
+        assertEquals("✓ No change since last check", n.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertTrue("unread change alert stays mentioned", lines.first().startsWith("🔔 Unread alert from"))
+        assertTrue(lines.any { it.startsWith("Tue 10 Nov: 1 of 12 with seats · from ₹437") })
+        assertEquals("silent: low priority", Notification.PRIORITY_LOW, @Suppress("DEPRECATION") n.priority)
+        assertEquals("no-change isn't added to the Notifications tab", stored, store.alerts.size)
+
+        // Option off: nothing posted. Cancel removes it.
+        Notifier.cancelPhoneNotification(app)
+        Notifier(app, store.settings).sendNoChange(watch.copy(notifyNoChange = false),
+            listOf(com.busseatalert.check.DateStatus("2026-11-10", listOf(bus), 12, emptyList())))
+        assertEquals(0, nm.allNotifications.size)
+    }
 }

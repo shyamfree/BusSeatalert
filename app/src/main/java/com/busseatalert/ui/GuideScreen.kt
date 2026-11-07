@@ -93,20 +93,27 @@ private val TOPICS = listOf(
     ),
     Topic(
         "5. Alerts and Notifications",
-        "• While Alerts are ON (green bar at the top of Search), the app checks your search every 15 minutes or " +
-            "more (set in Settings ⚙). Android doesn't allow more frequent background checks.\n" +
-            "• You get one notification per site, with the buses that changed. Tap it to see the buses.\n" +
-            "• Every alert is also saved in the Notifications tab, in case you missed or cleared the phone " +
-            "notification. Swipe one sideways to clear it, long-press or tap Select to clear several, or Clear all. " +
-            "Undo appears for a few seconds after clearing.\n" +
-            "• Turn the bar OFF to stop everything: no background checks, no notifications, SMS or email. Search " +
-            "still works when you press it.",
+        "• Search only shows results. To be told about changes, press 🔔 Set alert for this search under the " +
+            "results once the search is how you want it. A quiet \"Alert set\" notification shows the current seats.\n" +
+            "• From then on the app checks that search every 15 minutes or more (Settings ⚙) and notifies you only " +
+            "when something changes: seats free up (e.g. a cancellation), more seats appear, or a new bus with " +
+            "seats is added. That alert pops up with sound, and also goes by SMS and email if you turned those on.\n" +
+            "• When nothing changed, the phone notification is quietly updated to \"No change since last check\" " +
+            "(no sound, no SMS or email). Turn this off in More options → \"Show No change after each check\". " +
+            "An alert you haven't opened yet stays mentioned at the top of it.\n" +
+            "• Changing the search (route, dates, sites, filters) turns its alert off and clears the old phone " +
+            "notification; set the alert again for the new search.\n" +
+            "• The green bar at the top is the main switch: OFF stops all background checks and notifications.\n" +
+            "• Every change alert is also kept in the Notifications tab, in case you missed or cleared the phone " +
+            "notification. Swipe one sideways to clear it, long-press or tap Select to clear several, or Clear all.",
     ),
     Topic(
         "6. Settings ⚙",
         "• Check interval (15 minutes minimum).\n" +
             "• Push notifications on/off, with a test button.\n" +
-            "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply.\n" +
+            "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply. Android blocks the " +
+            "SMS permission for apps installed outside the Play Store: if the status shows \"not allowed\", tap " +
+            "Help for the steps (App info → ⋮ → Allow restricted settings, then Permissions → SMS → Allow).\n" +
             "• Email: uses your Gmail with an App Password (not your normal password). Turn on 2-Step Verification, " +
             "then create one at myaccount.google.com/apppasswords. Each channel has its own test button that shows " +
             "exactly what went wrong if it fails.",

@@ -65,6 +65,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.busseatalert.check.CheckWorker
 import com.busseatalert.check.Checker
+import com.busseatalert.check.currentStatus
+import com.busseatalert.notify.Notifier
 import com.busseatalert.data.Store
 import com.busseatalert.model.Operator
 import com.busseatalert.model.Watch
@@ -85,7 +87,7 @@ import java.util.Locale
 private val CHECKED_AT = SimpleDateFormat("d MMM, h:mm a", Locale.ENGLISH)
 
 /** The settings that change which buses are found; editing them means results need a new Search. */
-private fun criteria(w: Watch) = w.copy(enabled = true, name = "", notifyPush = true, notifySms = true, notifyEmail = true)
+private fun criteria(w: Watch) = w.copy(enabled = true, name = "", notifyPush = true, notifySms = true, notifyEmail = true, notifyNoChange = true, alertOn = false)
 
 /**
  * The app's home: one search (sites, from, to, dates, optional extras) with its results and
@@ -126,7 +128,12 @@ internal fun SearchScreen(store: Store, navigate: (Screen) -> Unit, selectTab: (
             Toast.makeText(context, problem, Toast.LENGTH_SHORT).show()
             return
         }
-        val watch = w.copy(enabled = true, dates = w.journeyDates().filter { it >= today })
+        val next = w.copy(enabled = true, dates = w.journeyDates().filter { it >= today })
+        // A different search (route, dates, sites, filters) needs its alert set again, and the phone
+        // notification about the previous search goes away.
+        val changed = saved == null || criteria(saved).copy(dates = saved.journeyDates().filter { it >= today }) != criteria(next)
+        val watch = if (changed) next.copy(alertOn = false) else next
+        if (changed && saved?.alertOn == true) Notifier.cancelPhoneNotification(context)
         w = watch
         store.upsertWatch(watch)
         searching = true
@@ -259,6 +266,18 @@ internal fun SearchScreen(store: Store, navigate: (Screen) -> Unit, selectTab: (
                     )
                 }
             }
+            item(key = "alert") {
+                AlertSetCard(shownWatch, appOn, checking) { on ->
+                    val updated = shownWatch.copy(alertOn = on)
+                    store.upsertWatch(updated)
+                    w = w.copy(alertOn = on)
+                    if (on) {
+                        CheckWorker.schedule(context)
+                        Notifier(context, store.settings).sendAlertSet(updated, currentStatus(store, updated))
+                    } else Notifier.cancelPhoneNotification(context)
+                    version++
+                }
+            }
             val r = result
             if (r == null) {
                 item { Text(if (checking) "Searching the sites…" else "Not searched yet for this date. Press Search.", Modifier.padding(8.dp)) }
@@ -352,10 +371,10 @@ private fun AlertsBar(on: Boolean, intervalMinutes: Int, onChange: (Boolean) -> 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(if (on) "Alerts ON" else "Alerts OFF", color = Color.White, fontWeight = FontWeight.Bold)
+            Text(if (on) "Alerts ON · main switch" else "Alerts OFF · main switch", color = Color.White, fontWeight = FontWeight.Bold)
             Text(
-                if (on) "Checking every ${intervalMinutes.coerceAtLeast(15)} min in the background"
-                else "Nothing runs in the background. Search still works when you press it.",
+                if (on) "Searches with an alert set are checked every ${intervalMinutes.coerceAtLeast(15)} min"
+                else "No background checks or notifications. Search still works when you press it.",
                 color = Color.White, style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -510,15 +529,65 @@ private fun MoreOptions(w: Watch, onChange: (Watch) -> Unit, onQuietChange: (Wat
         Text("Send alerts by", style = MaterialTheme.typography.labelLarge)
         CheckRow("Push notification" + if (!settings.pushEnabled) " (off in Settings)" else "", w.notifyPush) { onQuietChange(w.copy(notifyPush = it)) }
         CheckRow("SMS" + if (!settings.smsEnabled) " (set up in Settings)" else "", w.notifySms) { onQuietChange(w.copy(notifySms = it)) }
+        if (settings.smsEnabled && w.notifySms) SmsPermissionRow()
         CheckRow("Email" + if (!settings.emailEnabled) " (set up in Settings)" else "", w.notifyEmail) { onQuietChange(w.copy(notifyEmail = it)) }
-        Text("Every alert is also kept in the Alerts tab.", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline)
+        CheckRow("Show \"No change\" after each check (silent push only)", w.notifyNoChange) { onQuietChange(w.copy(notifyNoChange = it)) }
+        Text(
+            "Push, SMS and email are sent only when something changes: seats free up (e.g. a cancellation), " +
+                "more seats appear, or a new bus with seats is added. With \"No change\" on, the phone notification " +
+                "is also quietly updated after checks where nothing changed. SMS and email never send \"no change\". " +
+                "Every alert is kept in the Notifications tab.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
+        )
         if (w.fromBySite.isNotEmpty() || w.toBySite.isNotEmpty() || w.fromsBySite.isNotEmpty() || w.tosBySite.isNotEmpty()) {
             TextButton(onClick = {
                 onChange(w.copy(fromBySite = emptyMap(), toBySite = emptyMap(), fromsBySite = emptyMap(), tosBySite = emptyMap()))
             }) {
                 Text("Clear the site-specific place names")
             }
+        }
+    }
+}
+
+/**
+ * Under the search: sets or removes the alert for exactly this search. Search alone only shows
+ * results; with the alert set, the app checks in the background and notifies on changes.
+ */
+@Composable
+private fun AlertSetCard(watch: Watch, appOn: Boolean, busy: Boolean, onChange: (Boolean) -> Unit) {
+    val dates = watch.journeyDates().filter { it >= LocalDate.now().toString() }.joinToString { shortDate(it) }
+    if (!watch.alertOn) {
+        Column(
+            Modifier.fillMaxWidth().background(Color(0xFFFFF8E1), RoundedCornerShape(10.dp)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Happy with this search?", fontWeight = FontWeight.Bold)
+            Text(
+                "Set an alert and the app keeps checking ${watch.from} → ${watch.to} on $dates, and tells you when " +
+                    "seats free up or a new bus with seats is added.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = { onChange(true) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Text("🔔  Set alert for this search")
+            }
+        }
+    } else {
+        Column(
+            Modifier.fillMaxWidth().background(Color(0xFFE8F5E9), RoundedCornerShape(10.dp)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🔔 Alert is set for this search", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32),
+                    modifier = Modifier.weight(1f))
+                TextButton(onClick = { onChange(false) }) { Text("Turn off") }
+            }
+            Text("${watch.from} → ${watch.to} · $dates", style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (appOn) "You'll be notified only when something changes. Changing the search turns this alert off."
+                else "Paused: the main Alerts switch at the top is OFF.",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (appOn) MaterialTheme.colorScheme.outline else Color(0xFF8D4B00),
+            )
         }
     }
 }

@@ -15,8 +15,8 @@ android {
         applicationId = "com.busseatalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.2.0"
     }
 
     // Release signing key; keystore.properties holds the passwords and isn't part of the source.
@@ -68,6 +68,7 @@ dependencies {
     implementation("com.sun.mail:android-activation:1.6.7")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.work:work-testing:2.10.0")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

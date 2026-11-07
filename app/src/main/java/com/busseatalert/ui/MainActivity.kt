@@ -124,9 +124,7 @@ class MainActivity : ComponentActivity() {
                         Tab.NOTIFICATIONS -> NotificationsScreen(store, navigate, selectTab)
                     }
                     is Screen.Edit -> EditScreen(s.watch, store, onDeleted = { stack = listOf(Screen.Home(Tab.SEARCH)) }, done = back)
-                    Screen.Settings -> SettingsScreen(store, onSmsEnabled = {
-                        askPermissions.launch(arrayOf(Manifest.permission.SEND_SMS))
-                    }, done = back)
+                    Screen.Settings -> SettingsScreen(store, done = back)
                     Screen.Log -> LogScreen(store, navigate, back)
                     Screen.Guide -> GuideScreen(back)
                     is Screen.AlertDetail -> AlertDetailScreen(s.alertIds, store, back)
@@ -193,7 +191,7 @@ internal fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 }
 
 @Composable
-private fun SettingsScreen(store: Store, onSmsEnabled: () -> Unit, done: () -> Unit) {
+private fun SettingsScreen(store: Store, done: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var s by remember { mutableStateOf(store.settings) }
@@ -241,9 +239,8 @@ private fun SettingsScreen(store: Store, onSmsEnabled: () -> Unit, done: () -> U
             TestButton("Test push notification", ::runTest) { it.testPush() }
 
             Text("SMS", style = MaterialTheme.typography.titleSmall)
-            CheckRow("Send an SMS from this phone (carrier charges apply)", s.smsEnabled) {
-                s = s.copy(smsEnabled = it); if (it) onSmsEnabled()
-            }
+            CheckRow("Send an SMS from this phone (carrier charges apply)", s.smsEnabled) { s = s.copy(smsEnabled = it) }
+            if (s.smsEnabled) SmsPermissionRow()
             OutlinedTextField(s.smsNumber, { s = s.copy(smsNumber = it) }, label = { Text("Send SMS to (phone number)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
             TestButton("Test SMS", ::runTest) { it.testSms() }

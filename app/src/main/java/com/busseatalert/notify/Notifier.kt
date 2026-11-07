@@ -21,6 +21,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.busseatalert.R
 import com.busseatalert.data.Store
+import com.busseatalert.check.DateStatus
 import com.busseatalert.model.AlertBus
 import com.busseatalert.model.AlertRecord
 import com.busseatalert.model.AppSettings
@@ -189,6 +190,82 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         }
     }
 
+    /**
+     * After a check that found nothing new: quietly updates the single phone notification (no sound,
+     * no pop-up) to say so, with the current status. Never sent by SMS or email, and not added to
+     * the Notifications tab. If a change alert is still unread, it stays mentioned at the top and
+     * tapping opens it, so a quiet update never hides a change the user hasn't seen.
+     */
+    fun sendNoChange(watch: Watch, statuses: List<DateStatus>) {
+        if (!store.appEnabled || !settings.pushEnabled || !watch.notifyPush || !watch.notifyNoChange || statuses.isEmpty()) return
+        val title = if (statuses.sumOf { it.withSeats.size } == 0) "No seats yet · no change" else "✓ No change since last check"
+        runCatching { pushStatus(watch, statuses, title) }.onFailure { logFailure("Push notification", it) }
+    }
+
+    /** Right after the user taps "Set alert": a quiet notification with what the search shows now. */
+    fun sendAlertSet(watch: Watch, statuses: List<DateStatus>) {
+        if (!store.appEnabled || !settings.pushEnabled || !watch.notifyPush || statuses.isEmpty()) return
+        runCatching { pushStatus(watch, statuses, "🔔 Alert set · watching for changes") }.onFailure { logFailure("Push notification", it) }
+    }
+
+    private fun pushStatus(watch: Watch, statuses: List<DateStatus>, title: String) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!manager.areNotificationsEnabled()) return
+        val channel = ensureWatchChannel(context, watch)
+        val unread = store.alerts.filter { it.watchId == watch.id && !it.read }
+        // Alerts from the same check are saved together; open all of them.
+        val unreadBatch = unread.firstOrNull()?.let { latest -> unread.filter { latest.time - it.time < 60_000 } }.orEmpty()
+        val open = PendingIntent.getActivity(
+            context, NOTIFICATION_ID,
+            Intent(context, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_WATCH_ID, watch.id)
+                .apply {
+                    if (unreadBatch.isNotEmpty()) {
+                        putExtra(MainActivity.EXTRA_FROM_ALERT, true)
+                        putExtra(MainActivity.EXTRA_ALERT_IDS, unreadBatch.map { it.id }.toTypedArray())
+                    }
+                }
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val withSeats = statuses.sumOf { it.withSeats.size }
+        val at = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date())
+        val style = NotificationCompat.InboxStyle().setBigContentTitle(title).setSummaryText("Checked $at · tap to open")
+        unreadBatch.firstOrNull()?.let { a ->
+            val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(a.time))
+            style.addLine(SpannableString("🔔 Unread alert from $time: ${a.headline}").apply {
+                setSpan(StyleSpan(Typeface.BOLD), 0, length, 0)
+                setSpan(ForegroundColorSpan(KSRTC_RED), 0, length, 0)
+            })
+        }
+        statuses.forEach { st ->
+            val cheapest = st.withSeats.minByOrNull { it.fare }
+            style.addLine(
+                "${com.busseatalert.ui.shortDate(st.date)}: ${st.withSeats.size} of ${st.matching} with seats" +
+                    (cheapest?.let { " · from ₹${it.fare} (${it.operator.label} ${it.departure.take(5)})" } ?: ""),
+            )
+            if (st.failedSites.isNotEmpty()) style.addLine("⚠ ${st.failedSites.joinToString()} didn't load this time")
+        }
+        val notification = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_bus)
+            .setContentTitle(title)
+            .setContentText("${watch.displayName} · $withSeats bus${if (withSeats == 1) "" else "es"} with seats · checked $at")
+            .setStyle(style)
+            .setColor(KSRTC_RED)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true) // no sound, vibration or pop-up for "nothing changed"
+            .setShowWhen(true)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        try {
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            throw IllegalStateException("Notification permission not granted", e)
+        }
+    }
+
     private fun colored(op: Operator, line: String): CharSequence = SpannableStringBuilder().apply {
         val label = "${op.label}  "
         append(label)
@@ -215,7 +292,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     private fun sms(text: String) {
         check(settings.smsNumber.isNotBlank()) { "No phone number set for SMS" }
         check(ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
-            "SMS permission not granted. Allow it in Android Settings → Apps → Bus Seat Alert → Permissions."
+            "SMS permission not allowed. Android blocks it for apps installed outside the Play Store: open App info → ⋮ → " +
+                "Allow restricted settings, then Permissions → SMS → Allow. (Settings → SMS → Help shows the steps.)"
         }
         val manager = context.getSystemService(SmsManager::class.java)
         manager.sendMultipartTextMessage(settings.smsNumber, null, manager.divideMessage(text), null, null)
@@ -327,6 +405,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         fun colorFor(watch: Watch): Int = COLORS[Math.floorMod(watch.id.hashCode(), COLORS.size)]
 
         fun channelId(watch: Watch) = "search_${watch.id}"
+
+        /** Removes the phone notification, e.g. when the user starts a different search. */
+        fun cancelPhoneNotification(context: Context) = NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
 
         fun ensureChannel(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)

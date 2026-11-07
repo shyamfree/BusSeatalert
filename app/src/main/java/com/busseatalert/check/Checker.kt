@@ -13,12 +13,15 @@ import com.busseatalert.ui.prettyDate
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
+/** What one check found for one date, for the "no change" notification. */
+data class DateStatus(val date: String, val withSeats: List<BusService>, val matching: Int, val failedSites: List<String>)
+
 class Checker(private val context: Context) {
     private val store = Store(context)
 
     suspend fun runAll() {
         if (!store.appEnabled) return
-        store.watches.filter { it.enabled && it.from.isNotBlank() && it.to.isNotBlank() && upcomingDates(it).isNotEmpty() }
+        store.watches.filter { it.enabled && it.alertOn && it.from.isNotBlank() && it.to.isNotBlank() && upcomingDates(it).isNotEmpty() }
             .forEach { runWatch(it) }
     }
 
@@ -31,9 +34,10 @@ class Checker(private val context: Context) {
         val dates = upcomingDates(watch)
         if (dates.isEmpty()) return
         val summaries = mutableListOf<String>()
+        val statuses = mutableListOf<DateStatus>()
         store.setChecking(watch.id, true)
         val alerts = try {
-            dates.flatMap { date -> check(watch, date, summaries) }
+            dates.flatMap { date -> check(watch, date, summaries, statuses) }
         } finally {
             store.setChecking(watch.id, false)
         }
@@ -44,7 +48,11 @@ class Checker(private val context: Context) {
         alerts.groupBy { it.bus.operator }.forEach { (op, group) ->
             store.addLog("${op.label}: ${Alert.headline(group)}", LogKind.ALERT, group.joinToString("\n") { it.line }, watch.id)
         }
+        // A plain Search only shows results; notifications are for searches with an alert set.
+        if (!watch.alertOn) return
+        // Push/SMS/email only on a change; otherwise optionally a silent "no change" update of the push.
         if (alerts.isNotEmpty()) Notifier(context, store.settings).send(alerts)
+        else Notifier(context, store.settings).sendNoChange(watch, statuses)
     }
 
     private fun upcomingDates(watch: Watch): List<String> {
@@ -52,7 +60,9 @@ class Checker(private val context: Context) {
         return watch.journeyDates().filter { it >= today }
     }
 
-    private suspend fun check(watch: Watch, date: String, summaries: MutableList<String>): List<Alert> {
+    private suspend fun check(
+        watch: Watch, date: String, summaries: MutableList<String>, statuses: MutableList<DateStatus>,
+    ): List<Alert> {
         val errors = mutableMapOf<String, String>()
         val searchedAs = mutableMapOf<String, String>()
         val results = mutableListOf<BusService>()
@@ -92,6 +102,7 @@ class Checker(private val context: Context) {
         )
 
         val withSeats = matching.filter { it.seatsAvailable >= watch.minSeats }
+        statuses += DateStatus(date, withSeats, matching.size, errors.keys.toList())
         summaries += buildString {
             appendLine("${prettyDate(date)}: ${withSeats.size} of ${matching.size} matching buses have ${watch.minSeats}+ seats")
             watch.operators.forEach { op ->
@@ -137,4 +148,15 @@ suspend fun loadSeatLayout(watch: Watch, date: String, bus: BusService): com.bus
         return provider.seatLayout(fresh, date)
     }
     error("This bus is no longer listed for ${prettyDate(date)}")
+}
+
+/** The latest stored result for each upcoming date of [watch], for status notifications. */
+fun currentStatus(store: com.busseatalert.data.Store, watch: Watch): List<DateStatus> {
+    val today = LocalDate.now().toString()
+    return watch.journeyDates().filter { it >= today }.mapNotNull { date ->
+        store.result(watch.id, date)?.let { r ->
+            val matching = r.buses.filter { it.key in r.matchingKeys }
+            DateStatus(date, matching.filter { it.seatsAvailable >= watch.minSeats }, matching.size, r.errors.keys.toList())
+        }
+    }
 }
