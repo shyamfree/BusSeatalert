@@ -76,7 +76,12 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
 - SMS permission: Android 13+ blocks SEND_SMS for sideloaded apps ("restricted setting");
   `SmsPermissionRow` shows the status and walks the user through App info → Allow restricted settings.
   On the owner's phone sending still fails afterwards with `SecurityException: getSmsMmsDisabled`
-  from the system (not found in AOSP; likely the phone maker) — unresolved.
+  from the system on a Moto Edge 60 Pro, Android 17 (not found in AOSP). Fallback: when a direct send
+  fails with a SecurityException, `Store.smsDirectBlocked` is set and the change notification gets a
+  "Send SMS" action that opens Messages pre-filled (ACTION_SENDTO), so one tap sends a normal SMS.
+- WhatsApp alerts via CallMeBot's free API (`api.callmebot.com/whatsapp.php?phone&text&apikey`);
+  the user gets the key by messaging CallMeBot's current number (shown on callmebot.com, it changes,
+  so it isn't hard-coded). Change alerts only, like SMS/email.
 - No History tab, no activity log in the UI (Guide screen instead).
 - "Best pick" card above the results (`pick/Recommender.kt`): ranks buses with seats on price,
   comfort (keyword table on bus type names), journey time and preferred seat position

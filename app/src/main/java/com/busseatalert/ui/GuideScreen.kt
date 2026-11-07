@@ -115,7 +115,11 @@ private val TOPICS = listOf(
             "• Push notifications on/off, with a test button.\n" +
             "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply. Android blocks the " +
             "SMS permission for apps installed outside the Play Store: if the status shows \"not allowed\", tap " +
-            "Help for the steps (App info → ⋮ → Allow restricted settings, then Permissions → SMS → Allow).\n" +
+            "Help for the steps. Some phones (e.g. Motorola on Android 17) still refuse direct sending; then each " +
+            "alert comes with a \"Send SMS\" button that opens Messages with the text ready, so one tap sends it.\n" +
+            "• WhatsApp: free alerts to your own WhatsApp through the CallMeBot service. Tap \"How to get the free " +
+            "key\", message CallMeBot once from WhatsApp, then enter your number (with country code) and the key it " +
+            "sends you, and tap Test WhatsApp.\n" +
             "• Email: uses your Gmail with an App Password (not your normal password). Turn on 2-Step Verification, " +
             "then create one at myaccount.google.com/apppasswords. Each channel has its own test button that shows " +
             "exactly what went wrong if it fails.",

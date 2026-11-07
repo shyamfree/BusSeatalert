@@ -3,6 +3,8 @@ package com.busseatalert.ui
 import android.Manifest
 import android.app.DatePickerDialog
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
@@ -268,6 +270,52 @@ private fun SettingsScreen(store: Store, done: () -> Unit) {
             OutlinedTextField(s.smsNumber, { s = s.copy(smsNumber = it) }, label = { Text("Send SMS to (phone number)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
             TestButton("Test SMS", ::runTest) { it.testSms() }
+            if (s.smsEnabled) {
+                Text(
+                    if (store.smsDirectBlocked) "This phone blocks apps from sending SMS directly, so each alert comes with a " +
+                        "\"Send SMS\" button that opens Messages with the text ready: one tap on Send."
+                    else "If your phone blocks direct sending, alerts get a \"Send SMS\" button that opens Messages instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (store.smsDirectBlocked) Color(0xFF8D4B00) else MaterialTheme.colorScheme.outline,
+                )
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${s.smsNumber}"))
+                                .putExtra("sms_body", "Bus Seat Alert test: SMS through Messages works."),
+                        )
+                    },
+                    enabled = s.smsNumber.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Send a test SMS via Messages") }
+            }
+
+            Text("WhatsApp", style = MaterialTheme.typography.titleSmall)
+            CheckRow("Send alerts to WhatsApp (free, via CallMeBot)", s.whatsappEnabled) { s = s.copy(whatsappEnabled = it) }
+            if (s.whatsappEnabled) {
+                Text(
+                    "One-time setup (2 minutes):\n" +
+                        "1. Tap How to get the free key: CallMeBot's page shows its current WhatsApp number.\n" +
+                        "2. Save that number in your contacts and send it, from WhatsApp, the message the page shows " +
+                        "(\"I allow callmebot to send me messages\").\n" +
+                        "3. It replies with your API key. Enter your WhatsApp number and the key below, then Test.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.callmebot.com/blog/free-api-whatsapp-messages/")))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("How to get the free key") }
+                OutlinedTextField(s.whatsappPhone, { s = s.copy(whatsappPhone = it.trim()) },
+                    label = { Text("Your WhatsApp number, with country code") }, placeholder = { Text("+919876543210") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(s.whatsappApiKey, { s = s.copy(whatsappApiKey = it.trim()) },
+                    label = { Text("CallMeBot API key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                TestButton("Test WhatsApp", ::runTest) { it.testWhatsapp() }
+                Text("CallMeBot is a free third-party service for personal use; messages can take up to a minute.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            }
 
             Text("Email (Gmail)", style = MaterialTheme.typography.titleSmall)
             CheckRow("Send an email", s.emailEnabled) { s = s.copy(emailEnabled = it) }

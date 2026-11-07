@@ -46,6 +46,7 @@ data class Watch(
     val notifyPush: Boolean = true,
     val notifySms: Boolean = true,
     val notifyEmail: Boolean = true,
+    val notifyWhatsapp: Boolean = true,
     /** After checks that found no change, quietly update the phone notification to say so (never SMS/email). */
     val notifyNoChange: Boolean = true,
     /** The user tapped "Set alert" for this search: check it in the background and notify on changes. */
@@ -124,6 +125,10 @@ data class AppSettings(
     val emailFrom: String = "",
     val emailAppPassword: String = "",
     val emailTo: String = "",
+    /** WhatsApp via the free CallMeBot service: the user's WhatsApp number (with country code) and its key. */
+    val whatsappEnabled: Boolean = false,
+    val whatsappPhone: String = "",
+    val whatsappApiKey: String = "",
 )
 
 enum class LogKind { CHECK, ALERT, ERROR }

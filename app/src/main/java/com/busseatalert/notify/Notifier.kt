@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Request
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import android.graphics.Bitmap
@@ -100,16 +103,28 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             )
             id
         }
-        // Phone, SMS and email get a single combined message per check.
+        // Phone, SMS, WhatsApp and email get a single combined message per check.
+        // SMS goes first: if the phone refuses it, the push gets a "Send SMS" button instead.
+        val smsGroups = groups.filter { it.watch.notifySms }
+        var smsForButton: String? = null
+        if (settings.smsEnabled && smsGroups.isNotEmpty()) {
+            val text = shortText(smsGroups)
+            runCatching { sms(text); store.smsDirectBlocked = false }.onFailure {
+                logFailure("SMS", it)
+                if (generateSequence(it) { e -> e.cause }.any { e -> e is SecurityException }) {
+                    store.smsDirectBlocked = true
+                    smsForButton = text
+                }
+            }
+        }
         val pushGroups = groups.filter { it.watch.notifyPush }
         if (settings.pushEnabled && pushGroups.isNotEmpty()) {
-            runCatching { push(pushGroups, pushGroups.mapNotNull { recordIds[it] }) }.onFailure { logFailure("Push notification", it) }
+            runCatching { push(pushGroups, pushGroups.mapNotNull { recordIds[it] }, smsForButton) }
+                .onFailure { logFailure("Push notification", it) }
         }
-        val smsGroups = groups.filter { it.watch.notifySms }
-        if (settings.smsEnabled && smsGroups.isNotEmpty()) {
-            val text = "Bus Seat Alert: ${summary(smsGroups)}\n" + smsGroups.flatMap { g -> g.lines.map { "${g.operator.label} $it" } }
-                .let { lines -> lines.take(4).joinToString("\n") + if (lines.size > 4) "\n+${lines.size - 4} more in the app" else "" }
-            runCatching { sms(text) }.onFailure { logFailure("SMS", it) }
+        val waGroups = groups.filter { it.watch.notifyWhatsapp }
+        if (settings.whatsappEnabled && waGroups.isNotEmpty()) {
+            runCatching { whatsapp(shortText(waGroups, maxLines = 8)) }.onFailure { logFailure("WhatsApp", it) }
         }
         val emailGroups = groups.filter { it.watch.notifyEmail }
         if (settings.emailEnabled && emailGroups.isNotEmpty()) {
@@ -117,6 +132,40 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
                 "\n\nOpen Bus Seat Alert for full details and seat maps."
             runCatching { email("Bus Seat Alert: ${summary(emailGroups)}", body) }.onFailure { logFailure("Email", it) }
         }
+    }
+
+    /** Plain-text alert for SMS and WhatsApp. */
+    private fun shortText(groups: List<Group>, maxLines: Int = 4): String =
+        "Bus Seat Alert: ${summary(groups)}\n" + groups.flatMap { g -> g.lines.map { "${g.operator.label} $it" } }
+            .let { lines -> lines.take(maxLines).joinToString("\n") + if (lines.size > maxLines) "\n+${lines.size - maxLines} more in the app" else "" }
+
+    /**
+     * Sends a WhatsApp message to the user's own number through CallMeBot's free API
+     * (https://api.callmebot.com/whatsapp.php?phone=&text=&apikey=). The user gets the key once by
+     * messaging CallMeBot from WhatsApp.
+     */
+    private suspend fun whatsapp(text: String) = withContext(Dispatchers.IO) {
+        val phone = settings.whatsappPhone.filter { it.isDigit() || it == '+' }
+        check(phone.length >= 10) { "Enter your WhatsApp number with country code, e.g. +919876543210" }
+        check(settings.whatsappApiKey.isNotBlank()) { "Enter the CallMeBot API key (see \"How to get the free key\")" }
+        val url = "https://api.callmebot.com/whatsapp.php".toHttpUrl().newBuilder()
+            .addQueryParameter("phone", if (phone.startsWith("+")) phone else "+$phone")
+            .addQueryParameter("text", text)
+            .addQueryParameter("apikey", settings.whatsappApiKey.trim())
+            .build()
+        com.busseatalert.providers.Providers.http.newCall(Request.Builder().url(url).build()).execute().use { r ->
+            val body = r.body?.string().orEmpty()
+            val plain = body.replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim()
+            // CallMeBot answers 200 with a page; success says the message was queued or sent.
+            check(r.isSuccessful && Regex("queued|sent", RegexOption.IGNORE_CASE).containsMatchIn(plain)) {
+                "CallMeBot: " + plain.take(200).ifBlank { "HTTP ${r.code}" }
+            }
+        }
+    }
+
+    suspend fun testWhatsapp(): String {
+        runCatching { whatsapp("Bus Seat Alert test: WhatsApp alerts are working.") }.getOrElse { throw IllegalStateException(explain(it)) }
+        return "Test sent to WhatsApp ${settings.whatsappPhone}. It can take up to a minute to arrive."
     }
 
     /** "3 buses with seats · Palghat → Bengaluru" for a set of site groups. */
@@ -134,7 +183,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
      * sounds each time, and is styled to stand out: red bus icon, bold title, each bus line in its
      * site's colour.
      */
-    private fun push(groups: List<Group>, recordIds: List<String> = emptyList()) {
+    private fun push(groups: List<Group>, recordIds: List<String> = emptyList(), smsText: String? = null) {
         val watch = groups.first().watch
         val channel = ensureWatchChannel(context, watch)
         val manager = NotificationManagerCompat.from(context)
@@ -186,6 +235,15 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .setOnlyAlertOnce(false) // replacing still pops up and sounds
             .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
+            .apply {
+                // The phone blocks direct SMS: one tap opens Messages with the alert ready to send.
+                if (smsText != null) addAction(0, "Send SMS", PendingIntent.getActivity(
+                    context, NOTIFICATION_ID + 1,
+                    Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${settings.smsNumber}")).putExtra("sms_body", smsText)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ))
+            }
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
@@ -393,6 +451,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             !settings.smsEnabled -> "SMS: not set up in Settings"
             else -> runCatching { sms("Test for ${watch.displayName}: SMS alerts are working.", waitForResult = true) }
                 .fold({ it?.let { r -> "SMS: FAILED — $r" } ?: "SMS: sent" }, { "SMS: FAILED — ${explain(it)}" })
+        }
+        results += when {
+            !watch.notifyWhatsapp -> "WhatsApp: off for this search"
+            !settings.whatsappEnabled -> "WhatsApp: not set up in Settings"
+            else -> runCatching { whatsapp("Test for ${watch.displayName}: WhatsApp alerts are working.") }
+                .fold({ "WhatsApp: sent" }, { "WhatsApp: FAILED — ${explain(it)}" })
         }
         results += when {
             !watch.notifyEmail -> "Email: off for this search"

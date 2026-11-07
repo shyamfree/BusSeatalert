@@ -93,6 +93,11 @@ class Store(context: Context) {
         }))
     }
 
+    /** The phone refused the last direct SMS send (e.g. Motorola/Android 17): alerts offer "Send SMS" instead. */
+    var smsDirectBlocked: Boolean
+        get() = prefs.getBoolean("sms_blocked", false)
+        set(value) = prefs.edit().putBoolean("sms_blocked", value).apply()
+
     /** Ask for fingerprint or phone PIN when opening the app. */
     var appLock: Boolean
         get() = prefs.getBoolean("app_lock", false)
@@ -123,7 +128,7 @@ class Store(context: Context) {
         watches = if (old == null) watches + watch else watches.map { if (it.id == watch.id) watch else it }
         // Changed criteria means old seat counts are no longer comparable (dates are stored separately).
         fun criteria(w: Watch) = w.copy(enabled = true, dates = emptyList(), date = "", name = "",
-            notifyPush = true, notifySms = true, notifyEmail = true, notifyNoChange = true, alertOn = false)
+            notifyPush = true, notifySms = true, notifyEmail = true, notifyWhatsapp = true, notifyNoChange = true, alertOn = false)
         if (old != null && criteria(old) != criteria(watch)) {
             removeKeys("snap_${watch.id}", "result_${watch.id}")
         }

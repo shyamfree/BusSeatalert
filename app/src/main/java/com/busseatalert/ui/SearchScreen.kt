@@ -87,7 +87,7 @@ import java.util.Locale
 private val CHECKED_AT = SimpleDateFormat("d MMM, h:mm a", Locale.ENGLISH)
 
 /** The settings that change which buses are found; editing them means results need a new Search. */
-private fun criteria(w: Watch) = w.copy(enabled = true, name = "", notifyPush = true, notifySms = true, notifyEmail = true, notifyNoChange = true, alertOn = false)
+private fun criteria(w: Watch) = w.copy(enabled = true, name = "", notifyPush = true, notifySms = true, notifyEmail = true, notifyWhatsapp = true, notifyNoChange = true, alertOn = false)
 
 /**
  * The app's home: one search (sites, from, to, dates, optional extras) with its results and
@@ -530,12 +530,13 @@ private fun MoreOptions(w: Watch, onChange: (Watch) -> Unit, onQuietChange: (Wat
         CheckRow("Push notification" + if (!settings.pushEnabled) " (off in Settings)" else "", w.notifyPush) { onQuietChange(w.copy(notifyPush = it)) }
         CheckRow("SMS" + if (!settings.smsEnabled) " (set up in Settings)" else "", w.notifySms) { onQuietChange(w.copy(notifySms = it)) }
         if (settings.smsEnabled && w.notifySms) SmsPermissionRow()
+        CheckRow("WhatsApp" + if (!settings.whatsappEnabled) " (set up in Settings)" else "", w.notifyWhatsapp) { onQuietChange(w.copy(notifyWhatsapp = it)) }
         CheckRow("Email" + if (!settings.emailEnabled) " (set up in Settings)" else "", w.notifyEmail) { onQuietChange(w.copy(notifyEmail = it)) }
         CheckRow("Show \"No change\" after each check (silent push only)", w.notifyNoChange) { onQuietChange(w.copy(notifyNoChange = it)) }
         Text(
-            "Push, SMS and email are sent only when something changes: seats free up (e.g. a cancellation), " +
+            "Push, SMS, WhatsApp and email are sent only when something changes: seats free up (e.g. a cancellation), " +
                 "more seats appear, or a new bus with seats is added. With \"No change\" on, the phone notification " +
-                "is also quietly updated after checks where nothing changed. SMS and email never send \"no change\". " +
+                "is also quietly updated after checks where nothing changed. SMS, WhatsApp and email never send \"no change\". " +
                 "Every alert is kept in the Notifications tab.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
         )
