@@ -36,10 +36,11 @@ class NotifierTest {
         assertEquals("only one phone notification", 1, shown.size)
         val n = shown.single()
         val title = n.extras.getCharSequence(Notification.EXTRA_TITLE).toString()
-        val lines = n.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)!!.map { it.toString() }
+        val lines = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)!!.toString().lines()
         println("title=$title | text=${n.extras.getCharSequence(Notification.EXTRA_TEXT)} | lines=$lines")
         assertEquals("🚌 SEATS OPENED UP!", title)
-        assertTrue(lines.single().startsWith("Karnataka RTC"))   // the newest alert replaced the older one
+        assertEquals("1 bus with seats · Palghat → Bengaluru", lines.first())
+        assertTrue(lines.drop(1).single().startsWith("Karnataka RTC"))   // the newest alert replaced the older one
         assertEquals("app keeps every site entry", 3, store.alerts.size)
     }
 
@@ -58,11 +59,12 @@ class NotifierTest {
         Notifier(app, store.settings).sendNoChange(watch, listOf(com.busseatalert.check.DateStatus("2026-11-10", listOf(bus), 12, emptyList())))
 
         val n = nm.allNotifications.single()
-        val lines = n.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)!!.map { it.toString() }
+        val lines = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)!!.toString().lines().drop(1)
         println("no-change: ${n.extras.getCharSequence(Notification.EXTRA_TITLE)} | $lines")
         assertEquals("✓ No change since last check", n.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
         assertTrue("unread change alert stays mentioned", lines.first().startsWith("🔔 Unread alert from"))
-        assertTrue(lines.any { it.startsWith("Tue 10 Nov: 1 of 12 with seats · from ₹437") })
+        assertTrue(lines.any { it == "Tue 10 Nov: 1 of 12 with seats" })
+        assertTrue(lines.any { it == "TNSTC  22:00 ULTRA DELUXE · ₹437 · 4 seats" })
         assertEquals("silent: low priority", Notification.PRIORITY_LOW, @Suppress("DEPRECATION") n.priority)
         assertEquals("no-change isn't added to the Notifications tab", stored, store.alerts.size)
 

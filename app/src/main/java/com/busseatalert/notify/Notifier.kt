@@ -53,7 +53,7 @@ data class Alert(
 
     /** One short line per bus, e.g. "Thu 22 Oct 23:25 AC SEATER: 25 seats (was full)". */
     val line: String get() = buildString {
-        append("${shortDate(date)} ${bus.departure} ${bus.busType.take(28)}: ${bus.seatsAvailable} seats")
+        append("${shortDate(date)} ${bus.departure} ${bus.busType}: ${bus.seatsAvailable} seats")
         when {
             kind == Kind.NEW_BUS -> append(" (new bus)")
             previousSeats != null -> append(" (was ${if (previousSeats <= 0) "full" else previousSeats})")
@@ -159,13 +159,18 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             },
         ).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, 0) }
 
-        // One coloured, bold site label per line: Kerala red, Karnataka blue, TNSTC green.
+        // Expanded view: wrapped text (an inbox list cuts every line off at the screen edge).
+        // One coloured, bold site label per bus: Kerala red, Karnataka blue, TNSTC green.
         val lines = groups.flatMap { g -> g.lines.map { g.operator to it } }
-        val style = NotificationCompat.InboxStyle()
+        val body = SpannableStringBuilder().apply {
+            append(summary(groups))
+            lines.take(MAX_LINES).forEach { (op, line) -> append("\n").append(colored(op, line)) }
+            if (lines.size > MAX_LINES) append("\n+${lines.size - MAX_LINES} more in the app")
+        }
+        val style = NotificationCompat.BigTextStyle()
             .setBigContentTitle(title)
-            .setSummaryText("${lines.size} update${if (lines.size > 1) "s" else ""} · tap to see seats")
-        lines.take(6).forEach { (op, line) -> style.addLine(colored(op, line)) }
-        if (lines.size > 6) style.addLine("+${lines.size - 6} more in the app")
+            .bigText(body)
+            .setSummaryText("tap to see seats")
 
         val notification = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_bus)
@@ -231,22 +236,26 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         )
         val withSeats = statuses.sumOf { it.withSeats.size }
         val at = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date())
-        val style = NotificationCompat.InboxStyle().setBigContentTitle(title).setSummaryText("Checked $at · tap to open")
+        val body = SpannableStringBuilder().append("${watch.displayName} · checked $at")
         unreadBatch.firstOrNull()?.let { a ->
             val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(a.time))
-            style.addLine(SpannableString("🔔 Unread alert from $time: ${a.headline}").apply {
+            body.append("\n").append(SpannableString("🔔 Unread alert from $time: ${a.headline}").apply {
                 setSpan(StyleSpan(Typeface.BOLD), 0, length, 0)
                 setSpan(ForegroundColorSpan(KSRTC_RED), 0, length, 0)
             })
         }
         statuses.forEach { st ->
-            val cheapest = st.withSeats.minByOrNull { it.fare }
-            style.addLine(
-                "${com.busseatalert.ui.shortDate(st.date)}: ${st.withSeats.size} of ${st.matching} with seats" +
-                    (cheapest?.let { " · from ₹${it.fare} (${it.operator.label} ${it.departure.take(5)})" } ?: ""),
-            )
-            if (st.failedSites.isNotEmpty()) style.addLine("⚠ ${st.failedSites.joinToString()} didn't load this time")
+            body.append("\n").append(SpannableString(
+                "${com.busseatalert.ui.shortDate(st.date)}: ${st.withSeats.size} of ${st.matching} with seats",
+            ).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, 0) })
+            // The cheapest few buses with seats, in full.
+            st.withSeats.sortedBy { it.fare }.take(3).forEach { b ->
+                body.append("\n").append(colored(b.operator, "${b.departure} ${b.busType} · ₹${b.fare} · ${b.seatsAvailable} seats"))
+            }
+            if (st.withSeats.size > 3) body.append("\n+${st.withSeats.size - 3} more in the app")
+            if (st.failedSites.isNotEmpty()) body.append("\n⚠ ${st.failedSites.joinToString()} didn't load this time")
         }
+        val style = NotificationCompat.BigTextStyle().setBigContentTitle(title).bigText(body).setSummaryText("tap to open")
         val notification = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_bus)
             .setContentTitle(title)
@@ -447,6 +456,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val GROUP = "searches"
         /** One notification on the phone at a time; each new alert replaces it. */
         private const val NOTIFICATION_ID = 7001
+        /** Bus lines in the expanded notification; the rest are counted and shown in the app. */
+        private const val MAX_LINES = 10
         private val KSRTC_RED = 0xFFD71920.toInt()
         private val SITE_COLORS = mapOf(
             Operator.KERALA_RTC to 0xFFE53935.toInt(),
