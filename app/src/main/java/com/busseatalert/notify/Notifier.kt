@@ -408,7 +408,10 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     }
 
     /** What to check when the phone itself refuses to send an SMS the app is allowed to send. */
-    private fun smsHelp(reason: String) = "$reason\n\n" +
+    private fun smsHelp(reason: String) = if (reason.startsWith("SecurityException")) "$reason\n\n" +
+        "The SMS permission is allowed, but this phone's system still blocks apps other than its Messages app " +
+        "from sending SMS. That's a phone setting the app can't change. Alerts still come as notifications and " +
+        "can go by email." else "$reason\n\n" +
         "This comes from the phone, not the bus sites. Please check:\n" +
         "• Two SIMs? Set a default SIM for SMS (Settings → SIM / Mobile network → SMS), not \"Ask every time\".\n" +
         "• The SIM can send SMS (active plan, SMS balance).\n" +

@@ -93,6 +93,11 @@ class Store(context: Context) {
         }))
     }
 
+    /** Ask for fingerprint or phone PIN when opening the app. */
+    var appLock: Boolean
+        get() = prefs.getBoolean("app_lock", false)
+        set(value) = prefs.edit().putBoolean("app_lock", value).apply()
+
     /** The Best pick card's choices, kept between visits. */
     var pickMode: String
         get() = prefs.getString("pick_mode", null) ?: "BALANCED"

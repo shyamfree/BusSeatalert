@@ -15,8 +15,8 @@ android {
         applicationId = "com.busseatalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.2.1"
+        versionCode = 6
+        versionName = "1.3.0"
     }
 
     // Release signing key; keystore.properties holds the passwords and isn't part of the source.
@@ -62,6 +62,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.biometric:biometric:1.1.0")
+    // biometric 1.1.0 brings an old fragment library that crashes with the new permission API; use a current one.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.sun.mail:android-mail:1.6.7")

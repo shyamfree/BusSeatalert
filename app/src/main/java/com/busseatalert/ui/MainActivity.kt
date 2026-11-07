@@ -5,7 +5,7 @@ import android.app.DatePickerDialog
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -86,7 +86,26 @@ sealed interface Screen {
     data class Seats(val watchId: String, val date: String, val bus: com.busseatalert.model.BusService) : Screen
 }
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (a ComponentActivity) is needed for the fingerprint/PIN prompt.
+class MainActivity : FragmentActivity() {
+    private lateinit var store: Store
+    private var locked by mutableStateOf(false)
+    private var backgroundSince = 0L
+
+    private fun unlock() = AppLock.prompt(this, "Unlock Bus Seat Alert", onSuccess = { locked = false })
+
+    override fun onStart() {
+        super.onStart()
+        // Lock again after a minute away (and on every fresh start).
+        if (::store.isInitialized && store.appLock &&
+            (backgroundSince == 0L || System.currentTimeMillis() - backgroundSince > AppLock.RELOCK_AFTER_MS)) locked = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        backgroundSince = System.currentTimeMillis()
+    }
+
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,9 +115,11 @@ class MainActivity : ComponentActivity() {
         Notifier.ensureChannel(this)
         if (Build.VERSION.SDK_INT >= 33) askPermissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         CheckWorker.schedule(this)
-        val store = Store(this)
+        store = Store(this)
+        locked = store.appLock
         setContent {
             AppTheme {
+                if (locked) LockScreen(::unlock) else {
                 // Opened from a notification: show that route's results, with the Alerts tab underneath.
                 val startWatch = intent.getStringExtra(EXTRA_WATCH_ID)?.takeIf { id -> store.watches.any { it.id == id } }
                 // The active search lives on the Search tab; older searches open in their own detail screen.
@@ -130,6 +151,7 @@ class MainActivity : ComponentActivity() {
                     is Screen.AlertDetail -> AlertDetailScreen(s.alertIds, store, back)
                     is Screen.Detail -> DetailScreen(s.watchId, store, navigate, back)
                     is Screen.Seats -> SeatLayoutScreen(s.watchId, s.date, s.bus, store, back)
+                }
                 }
             }
         }
@@ -234,6 +256,8 @@ private fun SettingsScreen(store: Store, done: () -> Unit) {
                 supportingText = { Text("Minimum 15 — Android doesn't allow more frequent background checks") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
 
+            AppLockSetting(store)
+
             Text("Push notifications", style = MaterialTheme.typography.titleSmall)
             CheckRow("Show a notification on this phone", s.pushEnabled) { s = s.copy(pushEnabled = it) }
             TestButton("Test push notification", ::runTest) { it.testPush() }
@@ -265,4 +289,30 @@ private fun SettingsScreen(store: Store, done: () -> Unit) {
             Spacer(Modifier.padding(16.dp))
         }
     }
+}
+
+/** Settings row for the app lock; changing it needs the phone's fingerprint or PIN first. */
+@Composable
+private fun AppLockSetting(store: Store) {
+    val context = LocalContext.current
+    val activity = context as FragmentActivity
+    var on by remember { mutableStateOf(store.appLock) }
+    var message by remember { mutableStateOf<String?>(null) }
+    Text("App lock", style = MaterialTheme.typography.titleSmall)
+    CheckRow("Lock the app with fingerprint or phone PIN", on) { want ->
+        val problem = AppLock.unavailableReason(context)
+        if (want && problem != null) {
+            message = problem
+            return@CheckRow
+        }
+        AppLock.prompt(activity, if (want) "Turn on app lock" else "Turn off app lock",
+            onSuccess = { store.appLock = want; on = want; message = null },
+            onFail = { message = it })
+    }
+    Text(
+        message ?: if (on) "Locked on every start and after a minute away. Notifications still arrive."
+        else "Uses your phone's own lock: fingerprint, face, PIN, pattern or password.",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (message != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+    )
 }
