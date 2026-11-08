@@ -76,8 +76,8 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
   is kept in the in-app Notifications tab (swipe / select / clear all, with undo); tapping opens
   details with "Refresh now". SMS and email: one combined message per check.
 - Master ON/OFF switch (green bar) stops all background work; a manual Search still works when off.
-- App lock doesn't ask if the phone was unlocked in the last 5 min (keystore key with a 300 s
-  auth validity: `AppLock.phoneUnlockedRecently`), per the owner.
+- App lock asks only on a fresh start and after the phone was locked (screen-off receiver sets
+  `AppLock.phoneLockedSinceLastUse`); switching apps doesn't ask. Per the owner, no timers.
 - App lock (Settings): phone's own biometric/PIN via androidx.biometric (`ui/AppLock.kt`);
   MainActivity is a FragmentActivity for BiometricPrompt. Keep `androidx.fragment` current: the
   old fragment that biometric 1.1.0 pulls in crashes on start ("lower 16 bits for requestCode").

@@ -38,4 +38,21 @@ class AppLockTest {
             rule.onNodeWithText("Search on").assertExists()
         }
     }
+
+    @Test
+    fun asksAgainOnlyAfterThePhoneWasLocked() {
+        val store = Store(ApplicationProvider.getApplicationContext())
+        launch(lock = false).use { scenario ->
+            store.appLock = true
+            // Switching to another app and back: no prompt.
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            rule.onNodeWithText("Search on").assertExists()
+            // Phone locked (screen off) while away, then back: asks.
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            AppLock.phoneLockedSinceLastUse = true
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            rule.onNodeWithText("Bus Seat Alert is locked").assertExists()
+        }
+    }
 }

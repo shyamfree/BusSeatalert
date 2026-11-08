@@ -111,9 +111,9 @@ private val TOPICS = listOf(
     ),
     Topic(
         "6. Settings ⚙",
-        "• App lock: asks for your fingerprint or phone PIN when opening the app, but not if you unlocked " +
-            "your phone in the last 5 minutes (that already proves it's you). It uses your phone's own screen " +
-            "lock; notifications still arrive while locked.\n" +
+        "• App lock: asks for your fingerprint or phone PIN when you open the app fresh, and when you come " +
+            "back to it after your phone was locked. Switching between apps doesn't ask. It uses your phone's " +
+            "own screen lock; notifications still arrive while locked.\n" +
             "• Check interval (15 minutes minimum).\n" +
             "• Push notifications on/off, with a test button.\n" +
             "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply. Android blocks the " +

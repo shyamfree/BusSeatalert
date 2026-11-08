@@ -2,8 +2,6 @@ package com.busseatalert.ui
 
 import android.content.Context
 import android.os.Build
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -37,8 +35,24 @@ import androidx.fragment.app.FragmentActivity
  * The app keeps no PIN of its own.
  */
 object AppLock {
-    /** Re-lock after the app has been in the background this long (unless the phone was just unlocked). */
-    const val RELOCK_AFTER_MS = 60_000L
+    /** Set when the screen turns off (phone locked); the next return to the app asks again. */
+    @Volatile var phoneLockedSinceLastUse = false
+
+    private var watching = false
+
+    /** Listens for the screen turning off while the app is running. */
+    fun watchPhoneLock(context: Context) {
+        if (watching) return
+        watching = true
+        ContextCompat.registerReceiver(
+            context,
+            object : android.content.BroadcastReceiver() {
+                override fun onReceive(c: Context, i: android.content.Intent) { phoneLockedSinceLastUse = true }
+            },
+            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
 
     // Before Android 11, "strong biometric or PIN" isn't a supported combination.
     private val authenticators =
@@ -50,44 +64,6 @@ object AppLock {
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
             "Set a screen lock (PIN, pattern or password) on your phone first: Settings → Security → Screen lock."
         else -> "This phone can't use its screen lock for apps."
-    }
-
-    private const val KEY_ALIAS = "busseatalert_recent_unlock"
-    /** If the phone itself was unlocked this recently, the app doesn't ask again. */
-    private const val PHONE_UNLOCK_VALID_SECONDS = 300
-
-    /**
-     * True when the phone was unlocked (or the user authenticated) within the last 5 minutes. Uses a
-     * keystore key that Android only lets the app use for a while after the phone's own unlock, so
-     * nothing about the fingerprint or PIN is stored by the app.
-     */
-    fun phoneUnlockedRecently(): Boolean = try {
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, recentUnlockKey())
-        true
-    } catch (e: Exception) {
-        false // UserNotAuthenticatedException when it's been longer; any other problem: ask
-    }
-
-    private fun recentUnlockKey(): javax.crypto.SecretKey {
-        val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? javax.crypto.SecretKey)?.let { return it }
-        val spec = KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setUserAuthenticationRequired(true)
-            .apply {
-                if (Build.VERSION.SDK_INT >= 30) {
-                    setUserAuthenticationParameters(
-                        PHONE_UNLOCK_VALID_SECONDS, KeyProperties.AUTH_DEVICE_CREDENTIAL or KeyProperties.AUTH_BIOMETRIC_STRONG,
-                    )
-                } else {
-                    @Suppress("DEPRECATION") setUserAuthenticationValidityDurationSeconds(PHONE_UNLOCK_VALID_SECONDS)
-                }
-            }
-            .build()
-        return javax.crypto.KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-            .apply { init(spec) }.generateKey()
     }
 
     fun prompt(activity: FragmentActivity, title: String, onSuccess: () -> Unit, onFail: (String) -> Unit = {}) {

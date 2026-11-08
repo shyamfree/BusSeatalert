@@ -92,23 +92,14 @@ sealed interface Screen {
 class MainActivity : FragmentActivity() {
     private lateinit var store: Store
     private var locked by mutableStateOf(false)
-    private var backgroundSince = 0L
 
     private fun unlock() = AppLock.prompt(this, "Unlock Bus Seat Alert", onSuccess = { locked = false })
 
     override fun onStart() {
         super.onStart()
-        // Lock again after a minute away (and on every fresh start).
-        // ...but not if the phone itself was unlocked in the last few minutes: that already proved it's you.
-        if (::store.isInitialized && store.appLock &&
-            (backgroundSince == 0L || System.currentTimeMillis() - backgroundSince > AppLock.RELOCK_AFTER_MS)) {
-            locked = !AppLock.phoneUnlockedRecently()
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        backgroundSince = System.currentTimeMillis()
+        // Ask again only if the phone was locked while the app was away; switching apps doesn't count.
+        if (::store.isInitialized && store.appLock && AppLock.phoneLockedSinceLastUse) locked = true
+        AppLock.phoneLockedSinceLastUse = false
     }
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
@@ -121,7 +112,9 @@ class MainActivity : FragmentActivity() {
         if (Build.VERSION.SDK_INT >= 33) askPermissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         CheckWorker.schedule(this)
         store = Store(this)
-        locked = store.appLock && !AppLock.phoneUnlockedRecently()
+        // A fresh start always asks (when the lock is on).
+        locked = store.appLock
+        AppLock.watchPhoneLock(applicationContext)
         setContent {
             AppTheme {
                 if (locked) LockScreen(::unlock) else {
