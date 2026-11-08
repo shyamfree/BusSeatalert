@@ -82,6 +82,9 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
 - Master ON/OFF switch (green bar) stops all background work; a manual Search still works when off.
 - App lock asks only on a fresh start and after the phone was locked (screen-off receiver sets
   `AppLock.phoneLockedSinceLastUse`); switching apps doesn't ask. Per the owner, no timers.
+  `AppLock.unlockedThisRun` (process-wide) stops a notification tap, which recreates the activity,
+  from asking again while the app is already unlocked.
+- Buses whose booking isn't open yet are marked ⏳ (with time) in notifications, plus a legend line.
 - App lock (Settings): phone's own biometric/PIN via androidx.biometric (`ui/AppLock.kt`);
   MainActivity is a FragmentActivity for BiometricPrompt. Keep `androidx.fragment` current: the
   old fragment that biometric 1.1.0 pulls in crashes on start ("lower 16 bits for requestCode").

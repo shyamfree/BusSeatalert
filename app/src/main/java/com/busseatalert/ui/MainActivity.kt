@@ -93,12 +93,18 @@ class MainActivity : FragmentActivity() {
     private lateinit var store: Store
     private var locked by mutableStateOf(false)
 
-    private fun unlock() = AppLock.prompt(this, "Unlock Bus Seat Alert", onSuccess = { locked = false })
+    private fun unlock() = AppLock.prompt(this, "Unlock Bus Seat Alert", onSuccess = {
+        locked = false
+        AppLock.unlockedThisRun = true
+    })
 
     override fun onStart() {
         super.onStart()
         // Ask again only if the phone was locked while the app was away; switching apps doesn't count.
-        if (::store.isInitialized && store.appLock && AppLock.phoneLockedSinceLastUse) locked = true
+        if (::store.isInitialized && store.appLock && AppLock.phoneLockedSinceLastUse) {
+            locked = true
+            AppLock.unlockedThisRun = false
+        }
         AppLock.phoneLockedSinceLastUse = false
     }
 
@@ -112,8 +118,9 @@ class MainActivity : FragmentActivity() {
         if (Build.VERSION.SDK_INT >= 33) askPermissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         CheckWorker.schedule(this)
         store = Store(this)
-        // A fresh start always asks (when the lock is on).
-        locked = store.appLock
+        // A fresh start asks (when the lock is on); a screen restarted from a notification while the
+        // app was already unlocked doesn't, unless the phone was locked since.
+        locked = store.appLock && (!AppLock.unlockedThisRun || AppLock.phoneLockedSinceLastUse)
         AppLock.watchPhoneLock(applicationContext)
         setContent {
             AppTheme {

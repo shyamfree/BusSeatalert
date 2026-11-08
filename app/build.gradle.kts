@@ -15,8 +15,8 @@ android {
         applicationId = "com.busseatalert"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.6.0"
+        versionCode = 13
+        versionName = "1.6.1"
     }
 
     // Release signing key; keystore.properties holds the passwords and isn't part of the source.

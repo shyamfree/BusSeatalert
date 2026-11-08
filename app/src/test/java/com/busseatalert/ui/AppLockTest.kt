@@ -21,6 +21,8 @@ class AppLockTest {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         Store(app).appLock = lock
+        AppLock.unlockedThisRun = false
+        AppLock.phoneLockedSinceLastUse = false
         return ActivityScenario.launch(MainActivity::class.java)
     }
 
@@ -54,5 +56,16 @@ class AppLockTest {
             scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
             rule.onNodeWithText("Bus Seat Alert is locked").assertExists()
         }
+    }
+
+    @Test
+    fun notificationTapWhileUnlockedDoesNotAskAgain() {
+        launch(lock = true).use { rule.onNodeWithText("Bus Seat Alert is locked").assertExists() }
+        // The user unlocked it; a notification tap restarts the screen.
+        AppLock.unlockedThisRun = true
+        ActivityScenario.launch(MainActivity::class.java).use { rule.onNodeWithText("Search on").assertExists() }
+        // ...but after the phone was locked, it asks again.
+        AppLock.phoneLockedSinceLastUse = true
+        ActivityScenario.launch(MainActivity::class.java).use { rule.onNodeWithText("Bus Seat Alert is locked").assertExists() }
     }
 }

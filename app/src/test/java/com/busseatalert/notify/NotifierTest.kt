@@ -75,4 +75,21 @@ class NotifierTest {
             listOf(com.busseatalert.check.DateStatus("2026-11-10", listOf(bus), 12, emptyList())))
         assertEquals(0, nm.allNotifications.size)
     }
+
+    @Test
+    fun busNotYetBookableIsMarked() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        val store = Store(app)
+        val watch = Watch("w3", "Palakkad", "Bengaluru", dates = listOf("2026-11-10"), alertOn = true)
+        val opens = java.time.LocalDateTime.now().plusHours(6).withSecond(0).withNano(0).toString()
+        val bus = BusService(Operator.KERALA_RTC, "2100EKMBNG", "Ernakulam - Bangalore", "A/C SLEEPER", "00:25", "07:40", 1301, 14,
+            bookingOpensAt = opens)
+        Notifier(app, store.settings).send(listOf(Alert(watch, "2026-11-10", bus, Alert.Kind.SEATS_FREED, 0)))
+        val text = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.single()
+            .extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString()
+        println("not-open: $text")
+        assertTrue(text.contains("14 seats (was full) · ⏳ opens "))
+        assertTrue(text.contains("⏳ = booking from your stop opens 24 h before departure"))
+    }
 }

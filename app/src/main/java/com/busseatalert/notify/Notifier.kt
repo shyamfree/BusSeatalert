@@ -63,7 +63,7 @@ data class Alert(
             kind == Kind.NEW_BUS -> append(" (new bus)")
             previousSeats != null -> append(" (was ${if (previousSeats <= 0) "full" else previousSeats})")
         }
-        bus.bookingOpensLater()?.let { append(" · booking opens ${bookingOpensText(it)}") }
+        bus.bookingOpensLater()?.let { append(" · ⏳ opens ${bookingOpensText(it)}") }
     }
 
     companion object {
@@ -218,6 +218,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             append(summary(groups))
             lines.take(MAX_LINES).forEach { (op, line) -> append("\n").append(colored(op, line)) }
             if (lines.size > MAX_LINES) append("\n+${lines.size - MAX_LINES} more in the app")
+            if (groups.any { g -> g.alerts.any { it.bus.bookingOpensLater() != null } }) append("\n$NOT_OPEN_LEGEND")
         }
         val style = NotificationCompat.BigTextStyle()
             .setBigContentTitle(title)
@@ -312,10 +313,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             ).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, 0) })
             // The cheapest few buses with seats, in full.
             st.withSeats.sortedBy { it.fare }.take(3).forEach { b ->
-                body.append("\n").append(colored(b.operator, "${b.departure} ${b.busType} · ₹${b.fare} · ${b.seatsAvailable} seats"))
+                val notOpen = b.bookingOpensLater()?.let { " · ⏳ opens ${bookingOpensText(it)}" }.orEmpty()
+                body.append("\n").append(colored(b.operator, "${b.departure} ${b.busType} · ₹${b.fare} · ${b.seatsAvailable} seats$notOpen"))
             }
             if (st.withSeats.size > 3) body.append("\n+${st.withSeats.size - 3} more in the app")
             if (st.failedSites.isNotEmpty()) body.append("\n⚠ ${st.failedSites.joinToString()} didn't load this time")
+        }
+        if (statuses.any { st -> st.withSeats.sortedBy { it.fare }.take(3).any { it.bookingOpensLater() != null } }) {
+            body.append("\n$NOT_OPEN_LEGEND")
         }
         // An earlier change alert the user hasn't opened: a reminder, not a new change.
         unreadBatch.firstOrNull()?.let { a ->
@@ -534,6 +539,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val NOTIFICATION_ID = 7001
         /** Bus lines in the expanded notification; the rest are counted and shown in the app. */
         private const val MAX_LINES = 10
+        /** Explains ⏳ on Kerala buses joined mid-route, which open for booking 24 h before departure. */
+        private const val NOT_OPEN_LEGEND = "⏳ = booking from your stop opens 24 h before departure (you can view seats now)"
         private val KSRTC_RED = 0xFFD71920.toInt()
         private val SITE_COLORS = mapOf(
             Operator.KERALA_RTC to 0xFFE53935.toInt(),

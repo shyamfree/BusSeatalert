@@ -31,7 +31,7 @@ class BookingOpensTest {
     fun shownInAlertsAndBestPick() {
         val watch = Watch("w", "Palghat", "Bengaluru")
         val line = Alert(watch, "2026-11-10", bus, Alert.Kind.NEW_BUS).line
-        assertTrue(line, line.contains(" · booking opens "))
+        assertTrue(line, line.contains(" · ⏳ opens "))
         val reasons = Recommender.rank(listOf(bus), 1, PickMode.BALANCED, SeatPref.ANY).single().reasons
         assertTrue(reasons.toString(), reasons.any { it.startsWith("Booking opens ") })
     }

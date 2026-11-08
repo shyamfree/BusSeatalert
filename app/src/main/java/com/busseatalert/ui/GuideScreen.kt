@@ -64,7 +64,8 @@ private val TOPICS = listOf(
             "stand. Boarding & stops ▾ lists every boarding point in your From city and dropping point in your To " +
             "city with times, the route and the cancellation charges.\n" +
             "• Kerala RTC opens seats from a stop along a long route only 24 hours before the bus leaves. Such " +
-            "buses show \"Booking opens …\" in amber; you can still view their seats, and alerts mention it.\n" +
+            "buses show \"Booking opens …\" in amber; you can still view their seats. In notifications they're " +
+            "marked ⏳ with the opening time.\n" +
             "• 'Leaves after midnight' marks buses that leave early in the morning of the journey date, i.e. the " +
             "night before.\n" +
             "• Filters & sort: by default you see all buses with free seats, cheapest first. Change site, seats, " +
@@ -115,7 +116,8 @@ private val TOPICS = listOf(
     Topic(
         "6. Settings ⚙",
         "• App lock: asks for your fingerprint or phone PIN when you open the app fresh, and when you come " +
-            "back to it after your phone was locked. Switching between apps doesn't ask. It uses your phone's " +
+            "back to it after your phone was locked. Switching between apps or tapping a notification while the " +
+            "app is open doesn't ask. It uses your phone's " +
             "own screen lock; notifications still arrive while locked.\n" +
             "• Check interval (15 minutes minimum).\n" +
             "• Push notifications on/off, with a test button.\n" +

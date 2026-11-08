@@ -35,6 +35,12 @@ import androidx.fragment.app.FragmentActivity
  * The app keeps no PIN of its own.
  */
 object AppLock {
+    /**
+     * The user unlocked the app since it last started. Kept for the whole app process, so tapping a
+     * notification (which restarts the screen) doesn't ask again while the app is already open.
+     */
+    @Volatile var unlockedThisRun = false
+
     /** Set when the screen turns off (phone locked); the next return to the app asks again. */
     @Volatile var phoneLockedSinceLastUse = false
 
