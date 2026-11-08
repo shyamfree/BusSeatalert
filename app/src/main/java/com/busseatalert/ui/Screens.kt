@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import com.busseatalert.check.Checker
 import com.busseatalert.data.Store
 import com.busseatalert.model.BusService
+import com.busseatalert.model.bookingOpensLater
+import com.busseatalert.model.bookingOpensText
 import com.busseatalert.model.CheckResult
 import com.busseatalert.model.LogEntry
 import com.busseatalert.model.LogKind
@@ -273,6 +275,13 @@ internal fun BusCard(
                 Column(Modifier.weight(1f)) {
                     Text("₹${bus.fareText.ifBlank { bus.fare.toString() }}", fontWeight = FontWeight.SemiBold)
                     Text("Trip ${bus.serviceId}", style = MaterialTheme.typography.bodySmall)
+                    bus.bookingOpensLater()?.let { t ->
+                        Text(
+                            "Booking opens ${bookingOpensText(t)} (24 h before departure for stops along the route). " +
+                                "You can view the seats now.",
+                            color = Color(0xFF8D4B00), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Text(
                         if (bus.seatsVerified) "Seats counted from the seat map" else "Seats as listed (seat map not opened)",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,

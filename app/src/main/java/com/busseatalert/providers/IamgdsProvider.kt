@@ -130,6 +130,8 @@ class IamgdsProvider(
             via = str("ViaPlaces").takeIf { it.isNotBlank() }?.let { "Via $it" }.orEmpty(),
             fareText = fares.joinToString("/").ifBlank { fare.toString() },
             ref = str("RouteScheduleId"),
+            // "2026-11-09 00:25:00": seats from a middle stop open 24 h before departure (Kerala RTC).
+            bookingOpensAt = str("BookingAllowedDate").takeIf { it.isNotBlank() }?.replace(' ', 'T').orEmpty(),
             bookUrl = seatChartUrl(str("RouteScheduleId"), start, end, date),
         )
     }

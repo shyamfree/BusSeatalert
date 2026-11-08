@@ -60,6 +60,8 @@ private val TOPICS = listOf(
             "• Bus cards are coloured by site: Kerala red, Karnataka blue, TNSTC green. They show the bus type, " +
             "departure and arrival with dates, stops, duration, fare and free seats (green = plenty, amber = few, " +
             "grey FULL = none).\n" +
+            "• Kerala RTC opens seats from a stop along a long route only 24 hours before the bus leaves. Such " +
+            "buses show \"Booking opens …\" in amber; you can still view their seats, and alerts mention it.\n" +
             "• 'Leaves after midnight' marks buses that leave early in the morning of the journey date, i.e. the " +
             "night before.\n" +
             "• Filters & sort: by default you see all buses with free seats, cheapest first. Change site, seats, " +
@@ -109,8 +111,9 @@ private val TOPICS = listOf(
     ),
     Topic(
         "6. Settings ⚙",
-        "• App lock: ask for your fingerprint or phone PIN when opening the app (and after a minute away). " +
-            "It uses your phone's own screen lock; notifications still arrive while locked.\n" +
+        "• App lock: asks for your fingerprint or phone PIN when opening the app, but not if you unlocked " +
+            "your phone in the last 5 minutes (that already proves it's you). It uses your phone's own screen " +
+            "lock; notifications still arrive while locked.\n" +
             "• Check interval (15 minutes minimum).\n" +
             "• Push notifications on/off, with a test button.\n" +
             "• SMS: sent from this phone's SIM to the number you enter; normal SMS charges apply. Android blocks the " +

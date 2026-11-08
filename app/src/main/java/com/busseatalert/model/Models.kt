@@ -111,6 +111,11 @@ data class BusService(
     val bookUrl: String = "",
     /** Where the free seats are; null until the seat map has been read. */
     val seatInfo: SeatSummary? = null,
+    /**
+     * When booking opens, as yyyy-MM-ddTHH:mm:ss; blank when bookable now. Kerala RTC only opens seats
+     * from a stop along a long route 24 hours before the bus leaves (its BookingAllowedDate).
+     */
+    val bookingOpensAt: String = "",
 ) {
     val key: String get() = "${operator.name}|$serviceId|$departure"
 }
@@ -175,3 +180,11 @@ data class AlertRecord(
 
 @Serializable
 data class AlertBus(val date: String, val key: String)
+
+/** When booking opens for this bus, if that's still in the future; seats can be viewed before then. */
+fun BusService.bookingOpensLater(now: java.time.LocalDateTime = java.time.LocalDateTime.now()): java.time.LocalDateTime? =
+    runCatching { java.time.LocalDateTime.parse(bookingOpensAt) }.getOrNull()?.takeIf { it.isAfter(now) }
+
+/** "Mon 9 Nov, 12:25 AM" for a booking-opens time. */
+fun bookingOpensText(t: java.time.LocalDateTime): String =
+    t.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM, h:mm a", java.util.Locale.ENGLISH))

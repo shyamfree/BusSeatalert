@@ -30,6 +30,8 @@ import com.busseatalert.model.AlertBus
 import com.busseatalert.model.AlertRecord
 import com.busseatalert.model.AppSettings
 import com.busseatalert.model.BusService
+import com.busseatalert.model.bookingOpensLater
+import com.busseatalert.model.bookingOpensText
 import com.busseatalert.model.LogKind
 import com.busseatalert.model.Operator
 import com.busseatalert.model.Watch
@@ -61,6 +63,7 @@ data class Alert(
             kind == Kind.NEW_BUS -> append(" (new bus)")
             previousSeats != null -> append(" (was ${if (previousSeats <= 0) "full" else previousSeats})")
         }
+        bus.bookingOpensLater()?.let { append(" · booking opens ${bookingOpensText(it)}") }
     }
 
     companion object {

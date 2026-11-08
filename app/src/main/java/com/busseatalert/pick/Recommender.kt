@@ -1,6 +1,8 @@
 package com.busseatalert.pick
 
 import com.busseatalert.model.BusService
+import com.busseatalert.model.bookingOpensLater
+import com.busseatalert.model.bookingOpensText
 
 /** What matters most to the traveller when picking a bus. */
 enum class PickMode(val label: String) {
@@ -177,6 +179,7 @@ object Recommender {
                 else -> if (n >= minSeats) "$n ${pref.label.lowercase()} seat${if (n > 1) "s" else ""} free" else "Only $n ${pref.label.lowercase()} seat free"
             }
         }
+        bus.bookingOpensLater()?.let { out += "Booking opens ${bookingOpensText(it)} (24 h before departure)" }
         if (bus.seatsAvailable <= 3) out += "Only ${bus.seatsAvailable} seat${if (bus.seatsAvailable > 1) "s" else ""} left: book soon"
         return if (best) out else out.take(3)
     }

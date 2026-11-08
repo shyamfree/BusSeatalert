@@ -140,7 +140,7 @@ private fun PickDetails(p: Pick, isTop: Boolean, date: String) {
         Text("Why:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 2.dp))
         p.reasons.forEach { r ->
             Text("• $r", style = MaterialTheme.typography.bodySmall,
-                color = if (r.startsWith("Only") || r.startsWith("No ")) Color(0xFFB45309) else Color.Unspecified)
+                color = if (r.startsWith("Only") || r.startsWith("No ") || r.startsWith("Booking opens")) Color(0xFFB45309) else Color.Unspecified)
         }
     }
 }

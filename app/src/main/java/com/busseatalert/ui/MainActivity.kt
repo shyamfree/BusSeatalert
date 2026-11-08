@@ -99,8 +99,11 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         // Lock again after a minute away (and on every fresh start).
+        // ...but not if the phone itself was unlocked in the last few minutes: that already proved it's you.
         if (::store.isInitialized && store.appLock &&
-            (backgroundSince == 0L || System.currentTimeMillis() - backgroundSince > AppLock.RELOCK_AFTER_MS)) locked = true
+            (backgroundSince == 0L || System.currentTimeMillis() - backgroundSince > AppLock.RELOCK_AFTER_MS)) {
+            locked = !AppLock.phoneUnlockedRecently()
+        }
     }
 
     override fun onStop() {
@@ -118,7 +121,7 @@ class MainActivity : FragmentActivity() {
         if (Build.VERSION.SDK_INT >= 33) askPermissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         CheckWorker.schedule(this)
         store = Store(this)
-        locked = store.appLock
+        locked = store.appLock && !AppLock.phoneUnlockedRecently()
         setContent {
             AppTheme {
                 if (locked) LockScreen(::unlock) else {

@@ -42,6 +42,9 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
   `IamgdsProvider`: `/api/resource/getStaticCityList`, `searchRoutesV4` (journeyDate yyyy-MM-dd),
   `seatArrangement?routeID=<RouteScheduleId>`. Seat `Gender=F` on a free seat = ladies only;
   on a booked seat = booked by a woman.
+- Kerala's search has `BookingAllowedDate` ("yyyy-MM-dd HH:mm:ss", 24 h before departure) for buses
+  joined at a middle stop; blank when bookable now. Stored as `BusService.bookingOpensAt` and shown as
+  "Booking opens …" on cards, alerts and Best pick; seats stay viewable.
 - Booking links: `/seatchart/<RouteScheduleId>/<fromId>/<fromName>/<toId>/<toName>/<dd-MM-yyyy>/undefined/oneway/false/chart`.
 - TNSTC (`TnstcProvider`): Struts form posts to `/OTRSOnline/jqreq.do`; place lookup returns
   `id:code:NAME^`; results are HTML (`div.bus-list`). The seat map
@@ -73,6 +76,8 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
   is kept in the in-app Notifications tab (swipe / select / clear all, with undo); tapping opens
   details with "Refresh now". SMS and email: one combined message per check.
 - Master ON/OFF switch (green bar) stops all background work; a manual Search still works when off.
+- App lock doesn't ask if the phone was unlocked in the last 5 min (keystore key with a 300 s
+  auth validity: `AppLock.phoneUnlockedRecently`), per the owner.
 - App lock (Settings): phone's own biometric/PIN via androidx.biometric (`ui/AppLock.kt`);
   MainActivity is a FragmentActivity for BiometricPrompt. Keep `androidx.fragment` current: the
   old fragment that biometric 1.1.0 pulls in crashes on start ("lower 16 bits for requestCode").
