@@ -96,3 +96,35 @@ internal fun SmsPermissionRow() {
         )
     }
 }
+
+/**
+ * Whether Android lets the app run its checks on time. Phones (Motorola included) hold back
+ * background work for battery-optimised apps, so checks can be hours apart overnight.
+ */
+@Composable
+internal fun BatteryRow() {
+    val context = LocalContext.current
+    val tick = rememberTicker(2000)
+    val free = remember(tick) {
+        context.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    }
+    Row(
+        Modifier.fillMaxWidth()
+            .background(if (free) Color(0xFFE8F5E9) else Color(0xFFFFF3E0), RoundedCornerShape(8.dp))
+            .padding(start = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (free) "Background checks: allowed ✓" else "Battery saving may delay checks (even by hours)",
+            color = if (free) Color(0xFF2E7D32) else Color(0xFF8D4B00),
+            fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+        )
+        if (!free) TextButton(onClick = {
+            context.startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }) { Text("Allow") }
+    }
+}

@@ -62,6 +62,9 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
   alert the user set (`Watch.alertOn`, "🔔 Set alert for this search" under the results).
   Changing the search (anything in `criteria()`, dates included) turns its alert off and cancels
   the phone notification.
+- Change detection is `check/detectChanges` (unit-tested): the per-date memory keeps every bus ever
+  seen with its last known seats (failed checks must not make buses "new"); a new bus alerts only
+  with seats; a rise alerts only when counted from the seat map (`seatsVerified`).
 - Notify only on change (seats freed / increased, new bus with seats): sounding push + SMS +
   email. No change → optional silent push update "No change since last check"
   (`Watch.notifyNoChange`, default on); never SMS/email for no change. Setting an alert posts a

@@ -258,6 +258,8 @@ private fun SettingsScreen(store: Store, done: () -> Unit) {
                 supportingText = { Text("Minimum 15 — Android doesn't allow more frequent background checks") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
 
+            BatteryRow()
+
             AppLockSetting(store)
 
             Text("Push notifications", style = MaterialTheme.typography.titleSmall)

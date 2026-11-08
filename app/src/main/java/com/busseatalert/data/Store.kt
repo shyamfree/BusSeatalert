@@ -115,6 +115,10 @@ class Store(context: Context) {
     /** Last seen seat counts per watch and date: service key -> seats. Null means never checked. */
     fun snapshot(watchId: String, date: String): Map<String, Int>? = read("snap_${watchId}_$date")
 
+    fun needsRebaseline(watchId: String, date: String) = !prefs.getBoolean("baseline2_${watchId}_$date", false)
+
+    fun markBaselined(watchId: String, date: String) = prefs.edit().putBoolean("baseline2_${watchId}_$date", true).apply()
+
     fun saveSnapshot(watchId: String, date: String, seats: Map<String, Int>) = write("snap_${watchId}_$date", seats)
 
     fun deleteWatch(id: String) {

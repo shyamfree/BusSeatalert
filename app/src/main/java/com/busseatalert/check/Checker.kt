@@ -13,6 +13,36 @@ import com.busseatalert.ui.prettyDate
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
+/**
+ * Compares one check's matching buses with what was known before and returns the alerts plus the
+ * new memory of buses (last known seats per bus key). Every bus ever seen is remembered, so a failed
+ * check or a site briefly leaving a bus out never makes it look "new" later, and a list count (seat
+ * map didn't load) never overwrites a count read from the seat map.
+ */
+fun detectChanges(
+    watch: Watch, date: String, matching: List<BusService>, previous: Map<String, Int>?,
+): Pair<List<Alert>, Map<String, Int>> {
+    val known = previous.orEmpty()
+    val snapshot = known + matching.associate { bus ->
+        bus.key to (if (bus.seatsVerified || bus.key !in known) bus.seatsAvailable else known.getValue(bus.key))
+    }
+    val alerts = mutableListOf<Alert>()
+    for (bus in matching) {
+        val hasSeats = bus.seatsAvailable >= watch.minSeats
+        val before = known[bus.key]
+        when {
+            // First check of this date: report what's bookable right now.
+            previous == null -> if (hasSeats) alerts += Alert(watch, date, bus, Alert.Kind.AVAILABLE)
+            // A new bus is only worth an alert if it has seats; a full one is just remembered.
+            before == null -> if (hasSeats && watch.alertNewBus) alerts += Alert(watch, date, bus, Alert.Kind.NEW_BUS)
+            // Only trust a rise counted from the seat map, not the sites' rougher list numbers.
+            hasSeats && bus.seatsVerified && bus.seatsAvailable > before ->
+                if (watch.alertSeatsFreed) alerts += Alert(watch, date, bus, Alert.Kind.SEATS_FREED, before)
+        }
+    }
+    return alerts to snapshot
+}
+
 /** What one check found for one date, for the "no change" notification. */
 data class DateStatus(val date: String, val withSeats: List<BusService>, val matching: Int, val failedSites: List<String>)
 
@@ -95,7 +125,12 @@ class Checker(private val context: Context) {
         }
         val matching = results.filter { matches(watch, it) }
         val previous = store.snapshot(watch.id, date)
-        store.saveSnapshot(watch.id, date, matching.associate { it.key to it.seatsAvailable })
+        val (found, snapshot) = detectChanges(watch, date, matching, previous)
+        // Memory saved by versions before 1.4.1 lost buses after failed checks; rebuild it once
+        // quietly rather than alerting on buses that only look new.
+        val alerts = if (previous != null && store.needsRebaseline(watch.id, date)) emptyList() else found
+        store.markBaselined(watch.id, date)
+        store.saveSnapshot(watch.id, date, snapshot)
         store.saveResult(
             watch.id, date,
             CheckResult(System.currentTimeMillis(), date, searchedAs, results, matching.map { it.key }.toSet(), previous, errors),
@@ -111,18 +146,6 @@ class Checker(private val context: Context) {
             }
         }.trimEnd()
 
-        val alerts = mutableListOf<Alert>()
-        for (bus in matching) {
-            val hasSeats = bus.seatsAvailable >= watch.minSeats
-            val before = previous?.get(bus.key)
-            when {
-                // First check of this date: report what's bookable right now.
-                previous == null -> if (hasSeats) alerts += Alert(watch, date, bus, Alert.Kind.AVAILABLE)
-                before == null -> if (watch.alertNewBus) alerts += Alert(watch, date, bus, Alert.Kind.NEW_BUS)
-                hasSeats && bus.seatsAvailable > before ->
-                    if (watch.alertSeatsFreed) alerts += Alert(watch, date, bus, Alert.Kind.SEATS_FREED, before)
-            }
-        }
         return alerts
     }
 
