@@ -2,6 +2,8 @@ package com.busseatalert.providers
 
 import com.busseatalert.model.BusService
 import com.busseatalert.model.Operator
+import com.busseatalert.model.RouteStops
+import com.busseatalert.model.StopTime
 import com.busseatalert.model.Seat
 import com.busseatalert.model.SeatLayout
 import com.busseatalert.model.SeatStatus
@@ -89,6 +91,42 @@ class IamgdsProvider(
             )
         })
     }
+
+    /**
+     * getRouteInfo?routeID=<RouteScheduleId>: the bus's pickups in the From city (e.g. "Chandranagar
+     * Bypass" rather than the bus stand), drops in the To city, each with its time, and cancellation
+     * charges. Times come as "2026-11-10 09:31:00 pm"; names often end with a phone number.
+     */
+    override suspend fun routeStops(bus: BusService, date: String): RouteStops? = withContext(Dispatchers.IO) {
+        if (bus.ref.isBlank()) return@withContext null
+        val url = "$baseUrl/api/resource/getRouteInfo".toHttpUrl().newBuilder().addQueryParameter("routeID", bus.ref).build()
+        val o = json.parseToJsonElement(get(url.toString())).jsonObject
+        fun stops(key: String, name: String, time: String, landmark: String?) = (o[key] as? JsonArray).orEmpty().mapNotNull { e ->
+            val p = e.jsonObject
+            fun str(k: String) = (p[k] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+            val raw = str(name).ifBlank { return@mapNotNull null }
+            val phone = PHONE.find(raw)?.value
+            val clean = raw.replace(PHONE, "").replace(Regex("\\s+"), " ").trim()
+            val note = listOfNotNull(landmark?.let { str(it) }?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() && !it.equals(clean, true) },
+                phone?.let { "📞 $it" }).joinToString(" · ")
+            StopTime(clean, stopTime(str(time)), note)
+        }
+        val charges = (o["cnclDetails"] as? JsonObject)?.entries
+            ?.mapNotNull { (pct, v) -> (v as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }?.let { "$pct within $it" } }
+            .orEmpty()
+        RouteStops(
+            boarding = stops("pickups", "PickupName", "PickupTime", "Landmark"),
+            dropping = stops("dropPoints", "DropoffName", "DropoffTime", null),
+            via = bus.via.removePrefix("Via ").trim(),
+            notes = if (charges.isEmpty()) emptyList() else listOf("Cancellation charge: " + charges.joinToString(", ") + " of departure"),
+        )
+    }
+
+    /** "2026-11-10 09:31:00 pm" → "2026-11-10T21:31". */
+    private fun stopTime(raw: String): String = runCatching {
+        LocalDateTime.parse(raw, java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive()
+            .appendPattern("yyyy-MM-dd hh:mm:ss a").toFormatter(java.util.Locale.ENGLISH)).toString()
+    }.getOrDefault("")
 
     override suspend fun suggestPlaces(query: String, isFrom: Boolean): List<String> = withContext(Dispatchers.IO) {
         val spellings = PlaceNames.variants(query)
@@ -186,5 +224,9 @@ class IamgdsProvider(
             check(response.isSuccessful) { "${operator.label} returned HTTP ${response.code}" }
             response.body?.string().orEmpty()
         }
+    }
+
+    private companion object {
+        val PHONE = Regex("""\b\d{10,12}\b""")
     }
 }

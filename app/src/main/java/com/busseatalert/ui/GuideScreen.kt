@@ -60,6 +60,9 @@ private val TOPICS = listOf(
             "• Bus cards are coloured by site: Kerala red, Karnataka blue, TNSTC green. They show the bus type, " +
             "departure and arrival with dates, stops, duration, fare and free seats (green = plenty, amber = few, " +
             "grey FULL = none).\n" +
+            "• \"Boards at\" shows where the bus really picks up and when, e.g. a bypass rather than the bus " +
+            "stand. Boarding & stops ▾ lists every boarding point in your From city and dropping point in your To " +
+            "city with times, the route and the cancellation charges.\n" +
             "• Kerala RTC opens seats from a stop along a long route only 24 hours before the bus leaves. Such " +
             "buses show \"Booking opens …\" in amber; you can still view their seats, and alerts mention it.\n" +
             "• 'Leaves after midnight' marks buses that leave early in the morning of the journey date, i.e. the " +

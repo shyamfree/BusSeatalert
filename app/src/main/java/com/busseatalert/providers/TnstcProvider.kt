@@ -2,6 +2,8 @@ package com.busseatalert.providers
 
 import com.busseatalert.model.BusService
 import com.busseatalert.model.Operator
+import com.busseatalert.model.RouteStops
+import com.busseatalert.model.StopTime
 import com.busseatalert.model.Seat
 import com.busseatalert.model.SeatLayout
 import com.busseatalert.model.SeatStatus
@@ -104,6 +106,30 @@ class TnstcProvider(private val http: OkHttpClient) : BusProvider {
         return seats
     }
 
+    /**
+     * TNSTC's trip-details popup (the trip code link on its results): POST advanceNewBooking.do with
+     * the bus's ids. Its layout isn't parsed field by field yet, so each table row or line becomes a
+     * text note. The first boarding point is the start stand shown on the results.
+     */
+    override suspend fun routeStops(bus: BusService, date: String): RouteStops? = withContext(Dispatchers.IO) {
+        val parts = bus.stopsRef.split('|')
+        val base = RouteStops(
+            boarding = listOfNotNull(bus.boarding.takeIf { it.isNotBlank() }?.let { StopTime(it) }),
+            dropping = listOfNotNull(bus.dropping.takeIf { it.isNotBlank() }?.let { StopTime(it) }),
+            via = bus.via.removePrefix("Via-").trim(),
+        )
+        if (parts.size < 6) return@withContext base
+        val html = post(LAYOUT_URL, FormBody.Builder()
+            .add("ServiceID", parts[0]).add("TripCode", parts[1]).add("StartPlaceID", parts[2])
+            .add("EndPlaceID", parts[3]).add("JourneyDate", parts[4]).add("ClassID", parts[5]).build())
+        val lines = Regex("(?is)<tr[^>]*>(.*?)</tr>").findAll(html).map { row ->
+            Regex("(?is)<t[dh][^>]*>(.*?)</t[dh]>").findAll(row.groupValues[1])
+                .map { it.groupValues[1].replace(Regex("<[^>]*>"), " ").replace("&nbsp;", " ").replace(Regex("\\s+"), " ").trim() }
+                .filter { it.isNotBlank() }.joinToString(" · ")
+        }.filter { it.isNotBlank() }.take(40).toList()
+        base.copy(notes = lines)
+    }
+
     /** TNSTC lists the classes on a route directly ("id:NAME^" records), so no search is needed. */
     override suspend fun busTypes(from: String, to: String, dates: List<String>): List<String> = withContext(Dispatchers.IO) {
         val start = resolveAny(FROM_ACTION, FROM_FIELD, from)
@@ -171,6 +197,7 @@ class TnstcProvider(private val http: OkHttpClient) : BusProvider {
             via = VIA.find(block)?.groupValues?.get(1)?.trim().orEmpty(),
             fareText = priceText.replace(Regex("<[^>]*>|Rs\\.?"), " ").replace(Regex("\\s+"), "").trim(),
             ref = layout?.let { "${it[1]}|${it[2]}" }.orEmpty(),
+            stopsRef = TRIP_DETAILS.find(block)?.groupValues?.drop(1)?.joinToString("|").orEmpty(),
         )
     }
         // The same service is sometimes listed twice (once as "Full"); keep the bookable listing.
@@ -196,6 +223,8 @@ class TnstcProvider(private val http: OkHttpClient) : BusProvider {
         private val COMMENT = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
         private val NUMBER = Regex("""\d+""")
         private val SEATS = Regex("""(\d+)\s+Seats? Available""", RegexOption.IGNORE_CASE)
+        /** loadTripDetails('serviceInfo','tripCode','startPlaceID','endPlaceID','dd/MM/yyyy','classID') */
+        private val TRIP_DETAILS = Regex("""loadTripDetails\('([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)'\)""")
         private val SHOW_LAYOUT = Regex("""showLayOut\('([^']+)','(\d+)'""")
         /** A seat-map cell holding a tick box, i.e. a seat that can be selected. */
         private val TABLE_ROW = Regex("<tr[^>]*>(.*?)</tr>", RegexOption.DOT_MATCHES_ALL)

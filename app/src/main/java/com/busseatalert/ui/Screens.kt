@@ -200,6 +200,7 @@ internal fun BusCard(
     onBook: () -> Unit,
 ) {
     var seatsOpen by remember(bus.key, result.date) { mutableStateOf(false) }
+    var stopsOpen by remember(bus.key, result.date) { mutableStateOf(false) }
     val dep = datedTime(bus.departure, result.date)
     val arr = datedTime(bus.arrival, result.date, departure = bus.departure)
     val seatColor = when {
@@ -294,6 +295,20 @@ internal fun BusCard(
                 Column(horizontalAlignment = Alignment.End) {
                     Button(onClick = { seatsOpen = !seatsOpen }) { Text(if (seatsOpen) "Seats ▴" else "Seats ▾") }
                     OutlinedButton(onClick = onBook) { Text("Book ↗") }
+                }
+            }
+            // Where the bus actually picks up (e.g. Chandranagar bypass rather than the bus stand).
+            bus.stops?.boardingSummary()?.let {
+                Text("Boards at: $it", color = Color(0xFF2E7D32), fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = { stopsOpen = !stopsOpen }) {
+                Text(if (stopsOpen) "Boarding & stops ▴" else "Boarding & stops ▾")
+            }
+            AnimatedVisibility(stopsOpen) {
+                Column {
+                    HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                    StopsPanel(watch, result.date, bus, store)
                 }
             }
             // Seat map drops down inside the card, like the booking sites; tap Seats again to collapse.

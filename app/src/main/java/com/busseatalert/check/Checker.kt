@@ -110,10 +110,14 @@ class Checker(private val context: Context) {
                     // Only open seat maps for buses the user cares about, to keep requests down.
                     results += search.buses.filter { seen.add(it.key) }.map { bus ->
                         if (!matches(watch, bus)) return@map bus
-                        runCatching { provider.seatLayout(bus, date) }
+                        val counted = runCatching { provider.seatLayout(bus, date) }
                             .map { bus.copy(seatsAvailable = it.bookable, seatsVerified = true, seatInfo = it.summary()) }
                             .getOrDefault(bus)
                             .also { delay(300) }
+                        // Boarding points only for buses worth booking, to keep requests down.
+                        if (counted.seatsAvailable < watch.minSeats) counted
+                        else runCatching { provider.routeStops(counted, date) }.getOrNull()
+                            ?.let { counted.copy(stops = it) }?.also { delay(300) } ?: counted
                     }
                 }
                 searchedAs[op.label] = "${froms.joinToString(", ")} → ${tos.joinToString(", ")}"
@@ -182,4 +186,15 @@ fun currentStatus(store: com.busseatalert.data.Store, watch: Watch): List<DateSt
             DateStatus(date, matching.filter { it.seatsAvailable >= watch.minSeats }, matching.size, r.errors.keys.toList())
         }
     }
+}
+
+/** Fetches [bus]'s boarding points live (searching first, as TNSTC needs its session). */
+suspend fun loadRouteStops(watch: Watch, date: String, bus: BusService): com.busseatalert.model.RouteStops? {
+    val op = bus.operator
+    val provider = Providers.get(op)
+    for (from in watch.fromsFor(op)) for (to in watch.tosFor(op)) {
+        val fresh = provider.search(from, to, date).buses.firstOrNull { it.key == bus.key } ?: continue
+        return provider.routeStops(fresh, date)
+    }
+    error("This bus is no longer listed for ${prettyDate(date)}")
 }

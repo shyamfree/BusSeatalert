@@ -2,6 +2,7 @@ package com.busseatalert.providers
 
 import com.busseatalert.model.BusService
 import com.busseatalert.model.Operator
+import com.busseatalert.model.RouteStops
 import com.busseatalert.model.Seat
 import com.busseatalert.model.SeatLayout
 import com.busseatalert.model.SeatStatus
@@ -32,6 +33,12 @@ interface BusProvider {
     /** Bus types this site runs on the route on any of [dates], for the bus type picker. */
     suspend fun busTypes(from: String, to: String, dates: List<String>): List<String> =
         dates.take(3).flatMap { search(from, to, it).buses.map { b -> b.busType } }.filter { it.isNotBlank() }.distinct().sorted()
+
+    /**
+     * Boarding/dropping points with times for [bus] (call right after [search], like [seatLayout]).
+     * Null when the site has none.
+     */
+    suspend fun routeStops(bus: BusService, date: String): RouteStops? = null
 
     /** Place names this site knows that match [query], for the per-site name picker. */
     suspend fun suggestPlaces(query: String, isFrom: Boolean): List<String>

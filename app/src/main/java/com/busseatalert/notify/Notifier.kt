@@ -265,7 +265,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
      */
     fun sendNoChange(watch: Watch, statuses: List<DateStatus>) {
         if (!store.appEnabled || !settings.pushEnabled || !watch.notifyPush || !watch.notifyNoChange || statuses.isEmpty()) return
-        val title = if (statuses.sumOf { it.withSeats.size } == 0) "No seats yet · no change" else "✓ No change since last check"
+        // Say since when nothing has changed: the time of the last change alert for this search.
+        val lastChange = store.alerts.firstOrNull { it.watchId == watch.id }?.time
+            ?.let { java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(it)) }
+        val title = when {
+            statuses.sumOf { it.withSeats.size } == 0 -> "No seats yet · no change"
+            lastChange != null -> "✓ No change since $lastChange"
+            else -> "✓ No change since last check"
+        }
         runCatching { pushStatus(watch, statuses, title) }.onFailure { logFailure("Push notification", it) }
     }
 
@@ -297,14 +304,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         )
         val withSeats = statuses.sumOf { it.withSeats.size }
         val at = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date())
-        val body = SpannableStringBuilder().append("${watch.displayName} · checked $at")
-        unreadBatch.firstOrNull()?.let { a ->
-            val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(a.time))
-            body.append("\n").append(SpannableString("🔔 Unread alert from $time: ${a.headline}").apply {
-                setSpan(StyleSpan(Typeface.BOLD), 0, length, 0)
-                setSpan(ForegroundColorSpan(KSRTC_RED), 0, length, 0)
-            })
-        }
+        val body = SpannableStringBuilder().append(watch.displayName)
+        body.append("\n").append(SpannableString("Now (checked $at):").apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, 0) })
         statuses.forEach { st ->
             body.append("\n").append(SpannableString(
                 "${com.busseatalert.ui.shortDate(st.date)}: ${st.withSeats.size} of ${st.matching} with seats",
@@ -315,6 +316,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             }
             if (st.withSeats.size > 3) body.append("\n+${st.withSeats.size - 3} more in the app")
             if (st.failedSites.isNotEmpty()) body.append("\n⚠ ${st.failedSites.joinToString()} didn't load this time")
+        }
+        // An earlier change alert the user hasn't opened: a reminder, not a new change.
+        unreadBatch.firstOrNull()?.let { a ->
+            val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(a.time))
+            body.append("\n").append(SpannableString("🔔 You haven't opened the $time alert yet (${a.headline}). Tap to open it.").apply {
+                setSpan(StyleSpan(Typeface.BOLD), 0, length, 0)
+                setSpan(ForegroundColorSpan(KSRTC_RED), 0, length, 0)
+            })
         }
         val style = NotificationCompat.BigTextStyle().setBigContentTitle(title).bigText(body).setSummaryText("tap to open")
         val notification = NotificationCompat.Builder(context, channel)

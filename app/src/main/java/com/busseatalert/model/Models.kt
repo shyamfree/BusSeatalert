@@ -116,6 +116,10 @@ data class BusService(
      * from a stop along a long route 24 hours before the bus leaves (its BookingAllowedDate).
      */
     val bookingOpensAt: String = "",
+    /** Boarding and dropping points with times, route and booking notes; null until fetched. */
+    val stops: RouteStops? = null,
+    /** Provider data needed to fetch [stops] (TNSTC's trip-details arguments). */
+    val stopsRef: String = "",
 ) {
     val key: String get() = "${operator.name}|$serviceId|$departure"
 }
@@ -188,3 +192,17 @@ fun BusService.bookingOpensLater(now: java.time.LocalDateTime = java.time.LocalD
 /** "Mon 9 Nov, 12:25 AM" for a booking-opens time. */
 fun bookingOpensText(t: java.time.LocalDateTime): String =
     t.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM, h:mm a", java.util.Locale.ENGLISH))
+
+/** One boarding or dropping point. [time] is yyyy-MM-ddTHH:mm when known. */
+@Serializable
+data class StopTime(val name: String, val time: String = "", val note: String = "")
+
+/** Where a bus picks up in the From city and drops in the To city, as the operator lists it. */
+@Serializable
+data class RouteStops(
+    val boarding: List<StopTime> = emptyList(),
+    val dropping: List<StopTime> = emptyList(),
+    val via: String = "",
+    /** Extra lines from the operator, e.g. cancellation charges or TNSTC's trip details. */
+    val notes: List<String> = emptyList(),
+)

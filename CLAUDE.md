@@ -45,6 +45,10 @@ echo "sdk.dir=/opt/android-sdk" > <repo>/local.properties
 - Kerala's search has `BookingAllowedDate` ("yyyy-MM-dd HH:mm:ss", 24 h before departure) for buses
   joined at a middle stop; blank when bookable now. Stored as `BusService.bookingOpensAt` and shown as
   "Booking opens …" on cards, alerts and Best pick; seats stay viewable.
+- Boarding points: iamgds `getRouteInfo?routeID=<RouteScheduleId>` → pickups/dropPoints with times
+  ("2026-11-10 09:31:00 pm") + cancellation charges → `BusService.stops`, fetched in checks only for
+  matching buses with seats, else live from the card. TNSTC: POST advanceNewBooking.do with the
+  loadTripDetails args (`stopsRef`); its reply is shown as text lines (format not yet seen).
 - Booking links: `/seatchart/<RouteScheduleId>/<fromId>/<fromName>/<toId>/<toName>/<dd-MM-yyyy>/undefined/oneway/false/chart`.
 - TNSTC (`TnstcProvider`): Struts form posts to `/OTRSOnline/jqreq.do`; place lookup returns
   `id:code:NAME^`; results are HTML (`div.bus-list`). The seat map

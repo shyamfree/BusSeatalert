@@ -103,6 +103,12 @@ class Store(context: Context) {
         get() = prefs.getBoolean("app_lock", false)
         set(value) = prefs.edit().putBoolean("app_lock", value).apply()
 
+    /** Saves boarding points fetched live, so the card keeps them. */
+    fun updateStops(watchId: String, date: String, busKey: String, stops: com.busseatalert.model.RouteStops) = synchronized(Store) {
+        val r = result(watchId, date) ?: return@synchronized
+        saveResult(watchId, date, r.copy(buses = r.buses.map { if (it.key == busKey) it.copy(stops = stops) else it }))
+    }
+
     /** The Best pick card's choices, kept between visits. */
     var pickMode: String
         get() = prefs.getString("pick_mode", null) ?: "BALANCED"
